@@ -39,4 +39,27 @@ export function indexForL(L: number, paletteLength: number): number {
   return Math.max(0, Math.min(paletteLength - 1, idx))
 }
 
+// Returns hue in degrees [0, 360). If saturation is 0, returns 0.
+export function rgbToHue(r: number, g: number, b: number): number {
+  const rf = r / 255
+  const gf = g / 255
+  const bf = b / 255
+  const max = Math.max(rf, gf, bf)
+  const min = Math.min(rf, gf, bf)
+  const delta = max - min
+  if (delta === 0) return 0
+  let h = 0
+  if (max === rf) {
+    h = ((gf - bf) / delta) % 6
+  } else if (max === gf) {
+    h = (bf - rf) / delta + 2
+  } else {
+    h = (rf - gf) / delta + 4
+  }
+  h *= 60
+  if (h < 0) h += 360
+  return h
+}
+
+
 
