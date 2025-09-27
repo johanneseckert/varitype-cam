@@ -37,6 +37,7 @@ function App() {
     startCamera: button(() => start(), { disabled: state === 'starting' || state === 'running' }),
     stopCamera: button(() => stop(), { disabled: state !== 'running' }),
     snapshotPng: button(() => snapshotPng(), { disabled: state !== 'running' }),
+    exportSVG: button(() => exportSVG(), { disabled: state !== 'running' }),
     copyText: button(() => copyAsciiText(), { disabled: state !== 'running' }),
   }, [state])
 
@@ -135,6 +136,11 @@ function App() {
   const monochromeRef = useRef<boolean>(true)
   const backgroundColorRef = useRef<string>('#111111')
   const foregroundColorRef = useRef<string>('#eeeeee')
+
+  // SVG export data
+  const asciiGridRef = useRef<string[][]>([])
+  const weightGridRef = useRef<number[][]>([])
+  const colorGridRef = useRef<string[][]>([])
 
   const devicePixelRatioSafe = typeof window !== 'undefined' ? Math.max(1, window.devicePixelRatio || 1) : 1
 
@@ -318,6 +324,12 @@ function App() {
         const perm = huePermRef.current || undefined
         const lineHeight = lineHeightRef.current
         const charW = charWidthRef.current
+
+        // Initialize data grids for SVG export
+        asciiGridRef.current = new Array(targetRows).fill(null).map(() => new Array(targetCols))
+        weightGridRef.current = new Array(targetRows).fill(null).map(() => new Array(targetCols))
+        colorGridRef.current = new Array(targetRows).fill(null).map(() => new Array(targetCols))
+
         for (let y = 0; y < targetRows; y++) {
           let row = ''
           for (let x = 0; x < targetCols; x++) {
@@ -333,10 +345,17 @@ function App() {
 
             // Map brightness to variable font weight (100..800), darker → heavier
             const wght = Math.round(100 + (1 - L / 255) * (800 - 100))
+            const color = monochromeRef.current ? foregroundColorRef.current : `hsl(${Math.round(hue)}, 90%, 60%)`
+
+            // Store data for SVG export
+            asciiGridRef.current[y][x] = ch
+            weightGridRef.current[y][x] = wght
+            colorGridRef.current[y][x] = color
+
+            // Render to canvas
             actx.font = `${wght} ${DEFAULT_FONT_SIZE}px "GeistMonoVar", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`
             if (!monochromeRef.current) {
-              // Color by hue only (fixed saturation/lightness)
-              actx.fillStyle = `hsl(${Math.round(hue)}, 90%, 60%)`
+              actx.fillStyle = color
             }
             actx.fillText(ch, x * charW, y * lineHeight)
             row += ch
@@ -389,6 +408,78 @@ function App() {
       try { document.execCommand('copy') } catch {}
       document.body.removeChild(ta)
     }
+  }, [])
+
+  const exportSVG = useCallback(() => {
+    const asciiGrid = asciiGridRef.current
+    const weightGrid = weightGridRef.current
+    const colorGrid = colorGridRef.current
+
+    if (!asciiGrid.length || !weightGrid.length) return
+
+    const rows = asciiGrid.length
+    const cols = asciiGrid[0]?.length || 0
+    const charWidth = charWidthRef.current
+    const lineHeight = lineHeightRef.current
+    const fontSize = DEFAULT_FONT_SIZE
+
+    const svgWidth = cols * charWidth
+    const svgHeight = rows * lineHeight
+
+    let svgContent = `<?xml version="1.0" encoding="UTF-8"?>
+`
+    svgContent += `<svg width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}" xmlns="http://www.w3.org/2000/svg">
+`
+    svgContent += `  <defs>
+`
+    svgContent += `    <style>
+`
+    svgContent += `      .ascii-char {
+`
+    svgContent += `        font-family: 'GeistMonoVar', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+`
+    svgContent += `        font-size: ${fontSize}px;
+`
+    svgContent += `        dominant-baseline: text-before-edge;
+`
+    svgContent += `      }
+`
+    svgContent += `    </style>
+`
+    svgContent += `  </defs>
+`
+    svgContent += `  <rect width="100%" height="100%" fill="${backgroundColorRef.current}"/>
+`
+
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const char = asciiGrid[y]?.[x] || ''
+        if (!char || char === ' ') continue
+
+        const weight = weightGrid[y]?.[x] || 400
+        const color = colorGrid[y]?.[x] || foregroundColorRef.current
+        const xPos = x * charWidth
+        const yPos = y * lineHeight
+
+        svgContent += `  <text class="ascii-char" x="${xPos}" y="${yPos}" style="font-variation-settings: 'wght' ${weight}; fill: ${color};">`
+        svgContent += char.replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[c] || c))
+        svgContent += `</text>
+`
+      }
+    }
+
+    svgContent += `</svg>`
+
+    // Download SVG
+    const blob = new Blob([svgContent], { type: 'image/svg+xml' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'ascii-art.svg'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
   }, [])
 
   return (
