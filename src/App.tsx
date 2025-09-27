@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useControls, button, folder } from 'leva'
+import * as opentype from 'opentype.js'
 import './App.css'
 import { DEFAULT_PALETTE_NAME, PALETTES, getPalette } from './utils/palettes'
 import type { PaletteName } from './utils/palettes'
@@ -31,13 +32,14 @@ function App() {
   const [customPaletteChars, setCustomPaletteChars] = useState<string>('M')
   const [showCustomInput, setShowCustomInput] = useState<boolean>(true)
   const [isMonochrome, setIsMonochrome] = useState<boolean>(true)
+  const [font, setFont] = useState<opentype.Font | null>(null)
 
   // Camera Controls - reactive to state changes
   useControls('Camera', {
     startCamera: button(() => start(), { disabled: state === 'starting' || state === 'running' }),
     stopCamera: button(() => stop(), { disabled: state !== 'running' }),
     snapshotPng: button(() => snapshotPng(), { disabled: state !== 'running' }),
-    exportSVG: button(() => exportSVG(), { disabled: state !== 'running' }),
+    exportSVGPaths: button(() => exportSVGPaths(), { disabled: state !== 'running' || !font }),
     copyText: button(() => copyAsciiText(), { disabled: state !== 'running' }),
   }, [state])
 
@@ -116,6 +118,13 @@ function App() {
 
   // Internal state for triggering shuffle
   const [seedTrigger, setSeedTrigger] = useState(0)
+
+  // Load font for path-based SVG export
+  useEffect(() => {
+    opentype.load('/GeistMono-VariableFont_wght.ttf')
+      .then(setFont)
+      .catch(console.error)
+  }, [])
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const processCanvasRef = useRef<HTMLCanvasElement | null>(null) // offscreen buffer
@@ -410,7 +419,12 @@ function App() {
     }
   }, [])
 
-  const exportSVG = useCallback(() => {
+  const exportSVGPaths = useCallback(() => {
+    if (!font) {
+      console.warn('Font not loaded yet')
+      return
+    }
+
     const asciiGrid = asciiGridRef.current
     const weightGrid = weightGridRef.current
     const colorGrid = colorGridRef.current
@@ -430,24 +444,6 @@ function App() {
 `
     svgContent += `<svg width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}" xmlns="http://www.w3.org/2000/svg">
 `
-    svgContent += `  <defs>
-`
-    svgContent += `    <style>
-`
-    svgContent += `      .ascii-char {
-`
-    svgContent += `        font-family: 'GeistMonoVar', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-`
-    svgContent += `        font-size: ${fontSize}px;
-`
-    svgContent += `        dominant-baseline: text-before-edge;
-`
-    svgContent += `      }
-`
-    svgContent += `    </style>
-`
-    svgContent += `  </defs>
-`
     svgContent += `  <rect width="100%" height="100%" fill="${backgroundColorRef.current}"/>
 `
 
@@ -459,12 +455,29 @@ function App() {
         const weight = weightGrid[y]?.[x] || 400
         const color = colorGrid[y]?.[x] || foregroundColorRef.current
         const xPos = x * charWidth
-        const yPos = y * lineHeight
+        const yPos = y * lineHeight + fontSize // Adjust for baseline
 
-        svgContent += `  <text class="ascii-char" x="${xPos}" y="${yPos}" style="font-variation-settings: 'wght' ${weight}; fill: ${color};">`
-        svgContent += char.replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[c] || c))
-        svgContent += `</text>
+        try {
+          // Get glyph and convert to path
+          const glyph = font.charToGlyph(char)
+
+          // Scale font size and apply weight transformation
+          // Scale for proper font sizing
+          const weightScale = weight / 400 // Scale relative to normal weight
+
+          const path = glyph.getPath(xPos, yPos, fontSize)
+          const pathData = path.toPathData(2) // 2 decimal places
+
+          if (pathData && pathData !== 'M0,0Z') {
+            svgContent += `  <path d="${pathData}" fill="${color}" transform="scale(${weightScale}, 1)"/>
 `
+          }
+        } catch (e) {
+          console.warn(`Failed to convert character '${char}' to path:`, e)
+          // Fallback to text element
+          svgContent += `  <text x="${xPos}" y="${yPos}" font-family="monospace" font-size="${fontSize}" font-weight="${weight}" fill="${color}">${char}</text>
+`
+        }
       }
     }
 
@@ -475,12 +488,12 @@ function App() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'ascii-art.svg'
+    a.download = 'ascii-art-paths.svg'
     document.body.appendChild(a)
     a.click()
     a.remove()
     URL.revokeObjectURL(url)
-  }, [])
+  }, [font])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, alignItems: 'center', padding: '20px' }}>
