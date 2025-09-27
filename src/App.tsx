@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useControls, button, folder } from 'leva'
 import './App.css'
 import { DEFAULT_PALETTE_NAME, PALETTES, getPalette } from './utils/palettes'
 import type { PaletteName } from './utils/palettes'
@@ -26,17 +27,94 @@ function App() {
   const [state, setState] = useState<StartState>('idle')
   const [error, setError] = useState<string | null>(null)
 
-  // Controls
-  const [columns, setColumns] = useState<number>(DEFAULT_COLUMNS)
-  const [paletteName, setPaletteName] = useState<PaletteName>(DEFAULT_PALETTE_NAME)
-  const [brightness, setBrightness] = useState<number>(0)
-  const [contrast, setContrast] = useState<number>(0)
-  const [gamma, setGamma] = useState<number>(1)
-  const [invert, setInvert] = useState<boolean>(false)
-  const [monochrome, setMonochrome] = useState<boolean>(true)
-  const [format, setFormat] = useState<'16:9' | '3:4'>('16:9')
-  const [lineScale, setLineScale] = useState<number>(1.15) // line height multiplier
-  const [seed, setSeed] = useState<number>(123456789)
+  // Custom palette state
+  const [customPaletteChars, setCustomPaletteChars] = useState<string>('M')
+  const [showCustomInput, setShowCustomInput] = useState<boolean>(true)
+  const [isMonochrome, setIsMonochrome] = useState<boolean>(true)
+
+  // Camera Controls - reactive to state changes
+  useControls('Camera', {
+    startCamera: button(() => start(), { disabled: state === 'starting' || state === 'running' }),
+    stopCamera: button(() => stop(), { disabled: state !== 'running' }),
+    snapshotPng: button(() => snapshotPng(), { disabled: state !== 'running' }),
+    copyText: button(() => copyAsciiText(), { disabled: state !== 'running' }),
+  }, [state])
+
+  // Main Controls
+  const controls = useControls({
+
+    // Video & Display
+    'Display': folder({
+      columns: { value: DEFAULT_COLUMNS, min: 60, max: 240, step: 10 },
+      format: { value: '16:9 (video)', options: ['16:9 (video)', '3:4 (tarot)'] },
+    }),
+
+    // Character Mapping
+    'Characters': folder({
+      info: {
+        value: 'Characters are assigned to a hue value in video/image. Font weight will increase with brightness.',
+        editable: false
+      },
+      palette: { value: DEFAULT_PALETTE_NAME, options: Object.keys(PALETTES) },
+
+      // Custom Palette (conditionally shown)
+      ...(showCustomInput ? {
+        customChars: {
+          value: customPaletteChars,
+          label: 'Custom Characters',
+          onChange: (value: string) => {
+            console.log('Custom chars changed:', value)
+            setCustomPaletteChars(value)
+          }
+        }
+      } : {}),
+
+      seed: { value: 123456789, step: 1 },
+      shuffle: button(() => {
+        setSeedTrigger(Math.random())
+      }),
+    }),
+
+    // Appearance
+    'Appearance': folder({
+      brightness: { value: 0, min: -0.5, max: 0.5, step: 0.01 },
+      contrast: { value: 0, min: -0.5, max: 0.5, step: 0.01 },
+      gamma: { value: 1, min: 0.5, max: 2.5, step: 0.05 },
+      lineScale: { value: 1.15, min: 0.5, max: 1.2, step: 0.01, label: 'Line Height' },
+      charSpacing: { value: 1.0, min: 0.5, max: 2.0, step: 0.01, label: 'Char Spacing' },
+      backgroundColor: { value: '#111111' },
+      invert: false,
+      monochrome: true,
+      ...(isMonochrome ? {
+        foregroundColor: { value: '#eeeeee' }
+      } : {}),
+    }),
+  })
+
+  const controlsData = controls as any
+  console.log('Controls data:', controlsData)
+
+  // Extract values directly from the flat structure (Leva folders flatten the values)
+  const {
+    columns = DEFAULT_COLUMNS,
+    format = '16:9 (video)',
+    palette: paletteName = DEFAULT_PALETTE_NAME,
+    seed = 123456789,
+    brightness = 0,
+    contrast = 0,
+    gamma = 1,
+    lineScale = 1.15,
+    charSpacing = 1.0,
+    backgroundColor = '#111111',
+    invert = false,
+    monochrome = true,
+    foregroundColor = '#eeeeee'
+  } = controlsData
+
+  console.log('Extracted values:', { columns, format, paletteName, brightness, contrast, gamma, lineScale, charSpacing, backgroundColor, invert, monochrome, foregroundColor, seed })
+
+  // Internal state for triggering shuffle
+  const [seedTrigger, setSeedTrigger] = useState(0)
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const processCanvasRef = useRef<HTMLCanvasElement | null>(null) // offscreen buffer
@@ -51,28 +129,63 @@ function App() {
   const lineHeightRef = useRef<number>(Math.floor(DEFAULT_FONT_SIZE * 1.15))
   const charWidthRef = useRef<number>(Math.floor(DEFAULT_FONT_SIZE * 0.6))
   const optionsRef = useRef({ brightness, contrast, gamma, invert })
-  const paletteRef = useRef<string[]>(getPalette(paletteName))
+  const paletteRef = useRef<string[]>(getPalette(paletteName as PaletteName, paletteName === 'Custom' ? customPaletteChars : undefined))
   const asciiTextRef = useRef<string>('')
   const huePermRef = useRef<number[] | null>(null)
   const monochromeRef = useRef<boolean>(true)
+  const backgroundColorRef = useRef<string>('#111111')
+  const foregroundColorRef = useRef<string>('#eeeeee')
 
   const devicePixelRatioSafe = typeof window !== 'undefined' ? Math.max(1, window.devicePixelRatio || 1) : 1
 
-  const palette = useMemo(() => getPalette(paletteName), [paletteName])
+  const palette = useMemo(() =>
+    getPalette(paletteName as PaletteName, paletteName === 'Custom' ? customPaletteChars : undefined),
+    [paletteName, customPaletteChars]
+  )
 
   // Keep refs up to date
   useEffect(() => {
+    console.log('Updating optionsRef with:', { brightness, contrast, gamma, invert })
     optionsRef.current = { brightness, contrast, gamma, invert }
   }, [brightness, contrast, gamma, invert])
 
   useEffect(() => {
     monochromeRef.current = monochrome
-  }, [monochrome])
+    backgroundColorRef.current = backgroundColor
+    foregroundColorRef.current = foregroundColor
+    setIsMonochrome(monochrome)
+  }, [monochrome, backgroundColor, foregroundColor])
 
   useEffect(() => {
     paletteRef.current = palette
     huePermRef.current = makePermutation(palette.length, seed >>> 0)
   }, [palette, seed])
+
+  // Update palette ref immediately when custom characters change
+  useEffect(() => {
+    if (paletteName === 'Custom') {
+      console.log('Updating custom palette:', customPaletteChars)
+      const newPalette = getPalette('Custom', customPaletteChars)
+      console.log('New palette:', newPalette)
+      paletteRef.current = newPalette
+      huePermRef.current = makePermutation(newPalette.length, seed >>> 0)
+    }
+  }, [customPaletteChars, paletteName, seed])
+
+  // Handle palette switching - show/hide custom input based on selection
+  useEffect(() => {
+    const isCustom = paletteName === 'Custom'
+    setShowCustomInput(isCustom)
+  }, [paletteName])
+
+  // Handle shuffle button trigger
+  useEffect(() => {
+    if (seedTrigger > 0) {
+      const newSeed = (Math.random() * 2**31) | 0
+      // Update the permutation directly since we can't easily update Leva controls
+      huePermRef.current = makePermutation(getPalette(paletteName as PaletteName, paletteName === 'Custom' ? customPaletteChars : undefined).length, newSeed)
+    }
+  }, [seedTrigger, paletteName, customPaletteChars])
 
   const stop = useCallback(() => {
     if (rafRef.current !== null) {
@@ -101,7 +214,7 @@ function App() {
     if (!video || !processCanvas || !asciiCanvas) return
 
     // Target aspect comes from selection (height/width)
-    const aspect = format === '16:9' ? 9 / 16 : 4 / 3
+    const aspect = format && format.includes('16:9') ? 9 / 16 : 4 / 3
     const targetCols = columns
 
     // Prepare drawing context and measure glyph metrics first
@@ -115,7 +228,8 @@ function App() {
     // Measure average character advance using a longer sample to reduce jitter
     const sample = 'W'.repeat(100)
     const measured = actx.measureText(sample)
-    const approxCharWidth = Math.max(1, (measured.width || fontSize * 0.6) / 100)
+    const baseCharWidth = Math.max(1, (measured.width || fontSize * 0.6) / 100)
+    const approxCharWidth = baseCharWidth * charSpacing
     charWidthRef.current = approxCharWidth
 
     // Compute rows so that displayed canvas matches target aspect
@@ -137,16 +251,16 @@ function App() {
 
     // Apply font and variation settings
     actx.setTransform(devicePixelRatioSafe, 0, 0, devicePixelRatioSafe, 0, 0)
-    actx.fillStyle = '#111'
+    actx.fillStyle = backgroundColor
     actx.fillRect(0, 0, asciiCanvas.width, asciiCanvas.height)
-    actx.fillStyle = '#eee'
-  }, [columns, devicePixelRatioSafe, format, lineScale])
+    actx.fillStyle = foregroundColor
+  }, [columns, devicePixelRatioSafe, format, lineScale, charSpacing, backgroundColor, foregroundColor])
 
   // Reconfigure when columns/format/line height change during run
   useEffect(() => {
     if (state !== 'running') return
     configureSurfaces()
-  }, [columns, format, lineScale, state, configureSurfaces])
+  }, [columns, format, lineScale, charSpacing, state, configureSurfaces])
 
   const start = useCallback(async () => {
     if (state === 'starting' || state === 'running') return
@@ -191,10 +305,10 @@ function App() {
         const imageData = pctx.getImageData(0, 0, targetCols, targetRows)
         const data = imageData.data
 
-        actx.fillStyle = '#111'
+        actx.fillStyle = backgroundColorRef.current
         actx.fillRect(0, 0, asciiCanvas.width, asciiCanvas.height)
         if (monochromeRef.current) {
-          actx.fillStyle = '#eee'
+          actx.fillStyle = foregroundColorRef.current
         }
 
         const lines: string[] = new Array(targetRows)
@@ -278,79 +392,42 @@ function App() {
   }, [])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
-      <h1 style={{ margin: 0 }}>ASCII Cam</h1>
-      <p style={{ margin: 0, opacity: 0.8 }}>Live webcam → ASCII, Canvas 2D</p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, alignItems: 'center', padding: '20px' }}>
+      <header style={{ textAlign: 'center' }}>
+        <h1 style={{ margin: 0, fontSize: '2.5rem', fontWeight: 700 }}>ASCII Cam</h1>
+        <p style={{ margin: '8px 0 0', opacity: 0.8, fontSize: '1.1rem' }}>
+          Live webcam → ASCII with variable fonts
+        </p>
+      </header>
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}>
-        {state !== 'running' && (
-          <button onClick={start} disabled={state === 'starting'}>{state === 'starting' ? 'Starting…' : 'Start'}</button>
-        )}
-        {state === 'running' && (<>
-          <button onClick={stop}>Stop</button>
-          <button onClick={snapshotPng}>Snapshot PNG</button>
-          <button onClick={copyAsciiText}>Copy Text</button>
-        </>)}
-        <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-          <span>Cols</span>
-          <input type="range" min={60} max={240} step={10} value={columns} onChange={(e) => setColumns(parseInt(e.target.value, 10))} />
-          <input type="number" min={40} max={400} step={10} value={columns} onChange={(e) => setColumns(parseInt(e.target.value || '0', 10))} style={{ width: 70 }} />
-        </label>
-        <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-          <span>Palette</span>
-          <select value={paletteName} onChange={(e) => setPaletteName(e.target.value as PaletteName)}>
-            {Object.keys(PALETTES).map((name) => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-        </label>
-        <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-          <span>Seed</span>
-          <input type="number" value={seed} onChange={(e) => setSeed(parseInt(e.target.value || '0', 10))} style={{ width: 120 }} />
-          <button onClick={() => setSeed((Math.random() * 2**31) | 0)}>Shuffle</button>
-        </label>
-        <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-          <span>Format</span>
-          <select value={format} onChange={(e) => setFormat(e.target.value as '16:9' | '3:4')}>
-            <option value="16:9">16:9</option>
-            <option value="3:4">3:4</option>
-          </select>
-        </label>
-        <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-          <span>Bright</span>
-          <input type="range" min={-0.5} max={0.5} step={0.01} value={brightness} onChange={(e) => setBrightness(parseFloat(e.target.value))} />
-        </label>
-        <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-          <span>Contrast</span>
-          <input type="range" min={-0.5} max={0.5} step={0.01} value={contrast} onChange={(e) => setContrast(parseFloat(e.target.value))} />
-        </label>
-        <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-          <span>Gamma</span>
-          <input type="range" min={0.5} max={2.5} step={0.05} value={gamma} onChange={(e) => setGamma(parseFloat(e.target.value))} />
-        </label>
-        <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-          <span>Invert</span>
-          <input type="checkbox" checked={invert} onChange={(e) => setInvert(e.target.checked)} />
-        </label>
-        <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-          <span>Line H</span>
-          <input type="range" min={0.8} max={1.6} step={0.01} value={lineScale} onChange={(e) => setLineScale(parseFloat(e.target.value))} />
-        </label>
-        <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-          <span>Monochrome</span>
-          <input type="checkbox" checked={monochrome} onChange={(e) => setMonochrome(e.target.checked)} />
-        </label>
-        {/* Weight slider removed: weight is driven by brightness per cell */}
-      </div>
+      {/* Simplified status - main state is now in Camera folder */}
 
-      {error && <div style={{ color: '#ff6b6b' }}>{error}</div>}
+      {error && (
+        <div style={{
+          color: '#dc3545',
+          background: '#f8d7da',
+          padding: '12px 20px',
+          borderRadius: '8px',
+          border: '1px solid #f5c6cb'
+        }}>
+          {error}
+        </div>
+      )}
 
-      <canvas ref={asciiCanvasRef} style={{ background: '#111', borderRadius: 8, fontFamily: 'GeistMonoVar, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }} />
+      <canvas
+        ref={asciiCanvasRef}
+        style={{
+          background: backgroundColor,
+          borderRadius: '12px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+          fontFamily: 'GeistMonoVar, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+        }}
+      />
 
       {/* Hidden elements */}
       <video ref={videoRef} playsInline muted style={{ display: 'none' }} />
       <canvas ref={processCanvasRef} style={{ display: 'none' }} />
-    </div>
+      </div>
   )
 }
 
