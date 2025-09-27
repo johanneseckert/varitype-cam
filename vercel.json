@@ -1,8 +1,12 @@
 {
-  "rewrites": [
-    {
-      "source": "/varitype/(.*)",
-      "destination": "/$1"
-    }
-  ]
-}
+    "rewrites": [
+      {
+        "source": "/varitype",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/varitype/(.*)",
+        "destination": "/$1"
+      }
+    ]
+  }
