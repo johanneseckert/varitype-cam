@@ -4,6 +4,7 @@ import './App.css'
 import { DEFAULT_PALETTE_NAME, PALETTES, getPalette } from './utils/palettes'
 import type { PaletteName } from './utils/palettes'
 import { adjustLuminance, luminance, rgbToHue } from './utils/tone'
+import { WaveAnimation } from './components/WaveAnimation'
 
 type StartState = 'idle' | 'starting' | 'running' | 'error'
 
@@ -392,8 +393,11 @@ function App() {
   }, [])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, alignItems: 'center', padding: '20px' }}>
-      <header style={{ textAlign: 'center' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, alignItems: 'center', padding: '20px', position: 'relative', minHeight: '100vh' }}>
+      {/* Wave animation background when camera is off */}
+      <WaveAnimation isActive={state === 'idle' || state === 'error'} />
+
+      <header style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
         <h1 style={{ margin: 0, fontSize: '2.5rem', fontWeight: 700 }}>ASCII Alchemy</h1>
         <p style={{ margin: '8px 0 0', opacity: 0.8, fontSize: '1.1rem' }}>
           Live webcam → ASCII with variable fonts
@@ -401,6 +405,7 @@ function App() {
       </header>
 
       {/* Simplified status - main state is now in Camera folder */}
+      <div style={{ position: 'relative', zIndex: 1 }}>
 
       {error && (
         <div style={{
@@ -414,15 +419,18 @@ function App() {
         </div>
       )}
 
-      <canvas
-        ref={asciiCanvasRef}
-        style={{
-          background: backgroundColor,
-          borderRadius: '12px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-          fontFamily: 'GeistMonoVar, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
-        }}
-      />
+        <canvas
+          ref={asciiCanvasRef}
+          style={{
+            background: backgroundColor,
+            borderRadius: '12px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+            fontFamily: 'GeistMonoVar, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+            position: 'relative',
+            zIndex: 2
+          }}
+        />
+      </div>
 
       {/* Hidden elements */}
       <video ref={videoRef} playsInline muted style={{ display: 'none' }} />
