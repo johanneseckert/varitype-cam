@@ -1,16 +1,3 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-
-// https://vite.dev/config/
-export default defineConfig({
-  plugins: [react()],
-  base: '/varitype/', // Add this line for subpath deployment
-})
-```
-
-**And create a `vercel.json` file in your project root:**
-
-```json:vercel.json
 {
   "rewrites": [
     {
@@ -19,15 +6,3 @@ export default defineConfig({
     }
   ]
 }
-```
-
-## **Step 4: Redeploy**
-
-After making these changes, commit and push to trigger a new deployment.
-
-## **Questions:**
-
-1. **Do you want it at `proto.eckert.io` (root) or `proto.eckert.io/varitype` (subpath)?**
-2. **Where do you manage DNS for `eckert.io`?** (Cloudflare, Namecheap, etc.)
-
-Let me know which approach you prefer and I can give you more specific instructions!
