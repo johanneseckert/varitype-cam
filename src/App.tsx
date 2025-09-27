@@ -394,7 +394,7 @@ function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, alignItems: 'center', padding: '20px' }}>
       <header style={{ textAlign: 'center' }}>
-        <h1 style={{ margin: 0, fontSize: '2.5rem', fontWeight: 700 }}>ASCII Cam</h1>
+        <h1 style={{ margin: 0, fontSize: '2.5rem', fontWeight: 700 }}>ASCII Alchemy</h1>
         <p style={{ margin: '8px 0 0', opacity: 0.8, fontSize: '1.1rem' }}>
           Live webcam → ASCII with variable fonts
         </p>
