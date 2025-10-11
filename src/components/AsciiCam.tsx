@@ -1,14 +1,25 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { useControls, button, folder } from 'leva';
 import { useWebcam } from '../hooks/useWebcam';
 import { useAsciiRenderer } from '../hooks/useAsciiRenderer';
 import { useImageExport } from '../hooks/useImageExport';
 import { ASCII_PRESETS, PRESET_OPTIONS, type PresetName } from '../constants/asciiPresets';
 
-export function AsciiCam() {
+interface AsciiCamProps {
+  onCameraStart?: () => void;
+}
+
+export function AsciiCam({ onCameraStart }: AsciiCamProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { video, isReady, error, isLoading, hasStarted, startWebcam } = useWebcam();
   const { exportToPNG } = useImageExport();
+
+  // Notify parent when camera starts
+  useEffect(() => {
+    if (isReady && onCameraStart) {
+      onCameraStart();
+    }
+  }, [isReady, onCameraStart]);
 
   // Leva controls
   const settings = useControls({
@@ -38,40 +49,12 @@ export function AsciiCam() {
           return chars.length > 1;
         }
       },
-      randomSeed: {
-        value: 12345,
-        min: 0,
-        max: 999999,
-        step: 1,
-        label: 'Random Seed',
-        render: (get) => {
-          const preset = get('Character Set.preset');
-          const chars = preset === 'Custom'
-            ? get('Character Set.customChars')
-            : ASCII_PRESETS[preset];
-          return chars.length > 1 && get('Character Set.mappingMode') === 'random';
-        }
-      },
-      regenerate: button(() => {
-        // Generate new random seed
-        const newSeed = Math.floor(Math.random() * 999999);
-        settings.randomSeed = newSeed;
-      }, {
-        label: '🎲 Shuffle',
-        render: (get) => {
-          const preset = get('Character Set.preset');
-          const chars = preset === 'Custom'
-            ? get('Character Set.customChars')
-            : ASCII_PRESETS[preset];
-          return chars.length > 1 && get('Character Set.mappingMode') === 'random';
-        }
-      }),
       gradientSeed: {
-        value: 54321,
+        value: 42,
         min: 0,
-        max: 999999,
+        max: 100,
         step: 1,
-        label: 'Gradient Order',
+        label: 'Gradient Seed',
         render: (get) => {
           const preset = get('Character Set.preset');
           const chars = preset === 'Custom'
@@ -80,23 +63,35 @@ export function AsciiCam() {
           return chars.length > 1 && get('Character Set.mappingMode') === 'gradient';
         }
       },
-      regenerateGradient: button(() => {
-        // Generate new gradient seed
-        const newSeed = Math.floor(Math.random() * 999999);
-        settings.gradientSeed = newSeed;
-      }, {
-        label: '🎲 Shuffle Gradient',
+      randomSeed: {
+        value: 42,
+        min: 0,
+        max: 100,
+        step: 1,
+        label: 'Position Seed',
         render: (get) => {
           const preset = get('Character Set.preset');
           const chars = preset === 'Custom'
             ? get('Character Set.customChars')
             : ASCII_PRESETS[preset];
-          return chars.length > 1 && get('Character Set.mappingMode') === 'gradient';
+          return chars.length > 1 && get('Character Set.mappingMode') === 'random';
         }
-      })
+      }
     }),
 
     'Appearance': folder({
+      aspectRatio: {
+        value: 'Auto',
+        options: ['Auto', '16:9', '4:3', '1:1'],
+        label: 'Aspect Ratio'
+      },
+      resolution: {
+        value: 80,
+        min: 30,
+        max: 250,
+        step: 1,
+        label: 'Resolution (detail level)'
+      },
       colorMode: {
         value: 'monochrome' as 'monochrome' | 'colored',
         options: ['monochrome', 'colored'],
@@ -110,7 +105,10 @@ export function AsciiCam() {
       backgroundColor: {
         value: '#000000',
         label: 'Background'
-      },
+      }
+    }),
+
+    'Video Feed': folder({
       brightness: {
         value: 0,
         min: -100,
@@ -125,35 +123,20 @@ export function AsciiCam() {
         step: 1,
         label: 'Contrast'
       },
+      gamma: {
+        value: 1.0,
+        min: 0.1,
+        max: 3.0,
+        step: 0.1,
+        label: 'Gamma'
+      },
       invert: {
         value: false,
         label: 'Invert'
       }
     }),
 
-    'Grid': folder({
-      aspectRatio: {
-        value: '16:9',
-        options: ['16:9', '4:3', '1:1'],
-        label: 'Aspect Ratio'
-      },
-      resolution: {
-        value: 100,
-        min: 20,
-        max: 200,
-        step: 1,
-        label: 'Resolution (chars wide)'
-      },
-      fontSize: {
-        value: 16,
-        min: 8,
-        max: 40,
-        step: 1,
-        label: 'Font Size (px)'
-      }
-    }),
-
-    'Weight Mapping': folder({
+    'Font': folder({
       minWeight: {
         value: 100,
         min: 100,
@@ -167,6 +150,13 @@ export function AsciiCam() {
         max: 900,
         step: 50,
         label: 'Max Weight (bright)'
+      },
+      lineHeight: {
+        value: 1.0,
+        min: 0.5,
+        max: 2.0,
+        step: 0.05,
+        label: 'Line Height'
       }
     }),
 
@@ -174,7 +164,7 @@ export function AsciiCam() {
       exportPNG: button(() => exportToPNG(canvasRef.current), {
         label: '📸 Export PNG'
       })
-    })
+    }, { collapsed: true })
   });
 
   // Determine which characters to use
@@ -189,16 +179,17 @@ export function AsciiCam() {
     mappingMode: settings.mappingMode,
     gradientSeed: settings.gradientSeed,
     resolution: settings.resolution,
-    fontSize: settings.fontSize,
     aspectRatio: settings.aspectRatio,
     colorMode: settings.colorMode,
     foregroundColor: settings.foregroundColor,
     backgroundColor: settings.backgroundColor,
     brightness: settings.brightness,
     contrast: settings.contrast,
+    gamma: settings.gamma,
     invert: settings.invert,
     minWeight: settings.minWeight,
-    maxWeight: settings.maxWeight
+    maxWeight: settings.maxWeight,
+    lineHeight: settings.lineHeight
   });
 
   return (

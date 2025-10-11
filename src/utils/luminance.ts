@@ -26,6 +26,18 @@ export function applyContrast(luminance: number, contrast: number): number {
 }
 
 /**
+ * Apply gamma correction to luminance value
+ * @param luminance - Original luminance (0-255)
+ * @param gamma - Gamma value (0.1 to 3.0, 1.0 is neutral)
+ */
+export function applyGamma(luminance: number, gamma: number): number {
+  // Normalize to 0-1, apply gamma, then scale back to 0-255
+  const normalized = luminance / 255;
+  const corrected = Math.pow(normalized, 1 / gamma);
+  return Math.max(0, Math.min(255, corrected * 255));
+}
+
+/**
  * Map luminance value (0-255) to font weight (min-max)
  */
 export function mapToFontWeight(
@@ -39,13 +51,15 @@ export function mapToFontWeight(
 
 /**
  * Sample entire video frame at once for better performance
+ * Uses "cover" fitting - video is never stretched, but may be cropped
  */
 export function sampleVideoFrame(
   videoElement: HTMLVideoElement,
   tempCanvas: HTMLCanvasElement,
   tempCtx: CanvasRenderingContext2D,
   cols: number,
-  rows: number
+  rows: number,
+  canvasAspectRatio: number
 ): ImageData {
   // Resize temp canvas to match grid resolution (much smaller!)
   if (tempCanvas.width !== cols || tempCanvas.height !== rows) {
@@ -53,8 +67,36 @@ export function sampleVideoFrame(
     tempCanvas.height = rows;
   }
 
-  // Draw video scaled down to grid resolution
-  tempCtx.drawImage(videoElement, 0, 0, cols, rows);
+  // Calculate video aspect ratio
+  const videoWidth = videoElement.videoWidth;
+  const videoHeight = videoElement.videoHeight;
+  const videoAspect = videoWidth / videoHeight;
+
+  // Calculate source rectangle for "cover" fitting
+  let sourceX = 0;
+  let sourceY = 0;
+  let sourceWidth = videoWidth;
+  let sourceHeight = videoHeight;
+
+  if (Math.abs(videoAspect - canvasAspectRatio) > 0.01) {
+    // Aspect ratios don't match - need to crop
+    if (videoAspect > canvasAspectRatio) {
+      // Video is wider than canvas - crop sides
+      sourceWidth = videoHeight * canvasAspectRatio;
+      sourceX = (videoWidth - sourceWidth) / 2;
+    } else {
+      // Video is taller than canvas - crop top/bottom
+      sourceHeight = videoWidth / canvasAspectRatio;
+      sourceY = (videoHeight - sourceHeight) / 2;
+    }
+  }
+
+  // Draw cropped and scaled video to temp canvas
+  tempCtx.drawImage(
+    videoElement,
+    sourceX, sourceY, sourceWidth, sourceHeight,  // source rectangle
+    0, 0, cols, rows                               // destination rectangle
+  );
 
   // Get all pixel data at once
   return tempCtx.getImageData(0, 0, cols, rows);

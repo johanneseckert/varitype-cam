@@ -4,6 +4,7 @@ import {
   getPixelFromImageData,
   applyBrightness,
   applyContrast,
+  applyGamma,
   mapToFontWeight
 } from '../utils/luminance';
 import { getRandomChar, getCharByLuminance, shuffleString } from '../utils/seededRandom';
@@ -17,7 +18,6 @@ export interface RenderSettings {
 
   // Grid settings
   resolution: number;
-  fontSize: number;
   aspectRatio: string;
 
   // Appearance settings
@@ -26,11 +26,13 @@ export interface RenderSettings {
   backgroundColor: string;
   brightness: number;
   contrast: number;
+  gamma: number;
   invert: boolean;
 
   // Weight mapping
   minWeight: number;
   maxWeight: number;
+  lineHeight: number;
 }
 
 export function useAsciiRenderer(
@@ -50,35 +52,48 @@ export function useAsciiRenderer(
     // Character aspect ratio (monospace chars are typically ~0.6 width/height ratio)
     const charAspectRatio = 0.6;
 
+    // Target canvas size (adjust based on viewport, but keep it reasonable)
+    const targetCanvasWidth = Math.min(window.innerWidth * 0.8, 1600);
+
     // Get target canvas aspect ratio
     let targetAspectRatio: number;
-    switch (settings.aspectRatio) {
-      case '4:3':
-        targetAspectRatio = 4 / 3;
-        break;
-      case '1:1':
-        targetAspectRatio = 1;
-        break;
-      case '16:9':
-      default:
-        targetAspectRatio = 16 / 9;
-        break;
+
+    if (settings.aspectRatio === 'Auto' && video) {
+      // Use webcam's native aspect ratio
+      const videoAspect = video.videoWidth / video.videoHeight;
+      targetAspectRatio = videoAspect;
+    } else {
+      switch (settings.aspectRatio) {
+        case '4:3':
+          targetAspectRatio = 4 / 3;
+          break;
+        case '1:1':
+          targetAspectRatio = 1;
+          break;
+        case '16:9':
+          targetAspectRatio = 16 / 9;
+          break;
+        default:
+          // Fallback to 16:9
+          targetAspectRatio = 16 / 9;
+          break;
+      }
     }
 
     // Start with resolution as width (in characters)
     const cols = settings.resolution;
 
+    // Calculate font size to maintain target canvas width
+    // canvasWidth = cols * charWidth = cols * fontSize * charAspectRatio
+    // fontSize = targetCanvasWidth / (cols * charAspectRatio)
+    const fontSize = targetCanvasWidth / (cols * charAspectRatio);
+
     // Calculate rows needed to maintain aspect ratio, accounting for character shape
-    // canvasWidth / canvasHeight = targetAspectRatio
-    // (cols * charWidth) / (rows * charHeight) = targetAspectRatio
-    // Since charWidth/charHeight = charAspectRatio:
-    // (cols * charAspectRatio) / rows = targetAspectRatio
-    // rows = (cols * charAspectRatio) / targetAspectRatio
     const rows = Math.round((cols * charAspectRatio) / targetAspectRatio);
 
     // Calculate actual canvas dimensions
-    const charWidth = settings.fontSize * charAspectRatio;
-    const charHeight = settings.fontSize;
+    const charWidth = fontSize * charAspectRatio;
+    const charHeight = fontSize * settings.lineHeight; // Apply line height multiplier
     const canvasWidth = cols * charWidth;
     const canvasHeight = rows * charHeight;
 
@@ -88,9 +103,10 @@ export function useAsciiRenderer(
       canvasWidth,
       canvasHeight,
       charWidth,
-      charHeight
+      charHeight,
+      fontSize
     };
-  }, [settings.resolution, settings.aspectRatio, settings.fontSize]);
+  }, [settings.resolution, settings.aspectRatio, video]);
 
   // Pre-generate character lookup table (only for random mode)
   const charLookup = useMemo(() => {
@@ -133,7 +149,7 @@ export function useAsciiRenderer(
     const tempCtx = tempCtxRef.current;
     if (!tempCtx) return;
 
-    const { cols, rows, canvasWidth, canvasHeight, charWidth, charHeight } = gridDimensions;
+    const { cols, rows, canvasWidth, canvasHeight, charWidth, charHeight, fontSize } = gridDimensions;
 
     // Only resize canvas if dimensions changed
     if (canvas.width !== canvasWidth || canvas.height !== canvasHeight) {
@@ -166,15 +182,18 @@ export function useAsciiRenderer(
       ctx.fillStyle = settings.backgroundColor;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+      // Calculate canvas aspect ratio (accounting for character width)
+      const canvasAspectRatio = canvasWidth / canvasHeight;
+
       // Sample entire frame at once (at grid resolution for speed!)
-      const imageData = sampleVideoFrame(video, tempCanvas, tempCtx, cols, rows);
+      const imageData = sampleVideoFrame(video, tempCanvas, tempCtx, cols, rows, canvasAspectRatio);
 
       // Cache repeated values
       const useMultipleChars = settings.characters.length > 1;
       const singleChar = settings.characters || 'M';
       const isColored = settings.colorMode === 'colored';
       const isGradientMode = settings.mappingMode === 'gradient';
-      const { brightness, contrast, invert, minWeight, maxWeight, foregroundColor } = settings;
+      const { brightness, contrast, gamma, invert, minWeight, maxWeight, foregroundColor } = settings;
 
       // Render each character
       for (let row = 0; row < rows; row++) {
@@ -182,8 +201,9 @@ export function useAsciiRenderer(
           // Get pixel from pre-sampled image data
           const pixel = getPixelFromImageData(imageData, col, row, cols);
 
-          // Apply filters
+          // Apply filters in order: gamma -> brightness -> contrast -> invert
           let luminance = pixel.luminance;
+          luminance = applyGamma(luminance, gamma);
           luminance = applyBrightness(luminance, brightness);
           luminance = applyContrast(luminance, contrast);
 
@@ -215,7 +235,7 @@ export function useAsciiRenderer(
           }
 
           // Set font with variable weight
-          ctx.font = `${fontWeight} ${settings.fontSize}px 'Geist Mono Variable',monospace`;
+          ctx.font = `${fontWeight} ${fontSize}px 'Geist Mono Variable',monospace`;
 
           // Draw character
           const x = col * charWidth + charWidth / 2;
