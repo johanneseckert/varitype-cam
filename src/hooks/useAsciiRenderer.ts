@@ -7,14 +7,15 @@ import {
   applyGamma,
   mapToFontWeight
 } from '../utils/luminance';
-import { getRandomChar, getCharByLuminance, shuffleString } from '../utils/seededRandom';
+import { getRandomChar, getCharByLuminance, getCharByHue, shuffleString } from '../utils/seededRandom';
 
 export interface RenderSettings {
   // Character settings
   characters: string;
   randomSeed: number;
-  mappingMode: 'random' | 'gradient';
+  mappingMode: 'random' | 'gradient' | 'hue';
   gradientSeed: number;
+  hueSeed: number;
 
   // Grid settings
   resolution: number;
@@ -33,6 +34,7 @@ export interface RenderSettings {
   minWeight: number;
   maxWeight: number;
   lineHeight: number;
+  letterSpacing: number;
 }
 
 export function useAsciiRenderer(
@@ -81,21 +83,30 @@ export function useAsciiRenderer(
     }
 
     // Start with resolution as width (in characters)
-    const cols = settings.resolution;
+    const baseCols = settings.resolution;
 
-    // Calculate font size to maintain target canvas width
+    // Calculate font size based on base resolution
     // canvasWidth = cols * charWidth = cols * fontSize * charAspectRatio
     // fontSize = targetCanvasWidth / (cols * charAspectRatio)
-    const fontSize = targetCanvasWidth / (cols * charAspectRatio);
+    const fontSize = targetCanvasWidth / (baseCols * charAspectRatio);
 
-    // Calculate rows needed to maintain aspect ratio, accounting for character shape
-    const rows = Math.round((cols * charAspectRatio) / targetAspectRatio);
+    // Calculate canvas dimensions first (maintaining aspect ratio)
+    const baseFontSize = fontSize;
 
-    // Calculate actual canvas dimensions
-    const charWidth = fontSize * charAspectRatio;
-    const charHeight = fontSize * settings.lineHeight; // Apply line height multiplier
-    const canvasWidth = cols * charWidth;
-    const canvasHeight = rows * charHeight;
+    // Apply letter spacing - affects how much horizontal space each character takes
+    const charWidth = baseFontSize * charAspectRatio * settings.letterSpacing;
+
+    // Calculate how many columns fit in the target width with letter spacing
+    const canvasWidth = targetCanvasWidth;
+    const cols = Math.floor(canvasWidth / charWidth);
+
+    // Calculate target canvas height based on aspect ratio
+    const canvasHeight = canvasWidth / targetAspectRatio;
+
+    // Now calculate how many rows fit in this height given the line height
+    // Each row takes up (fontSize × lineHeight) vertical space
+    const rowHeight = baseFontSize * settings.lineHeight;
+    const rows = Math.floor(canvasHeight / rowHeight);
 
     return {
       cols,
@@ -103,10 +114,10 @@ export function useAsciiRenderer(
       canvasWidth,
       canvasHeight,
       charWidth,
-      charHeight,
-      fontSize
+      charHeight: rowHeight, // Use row height for character spacing
+      fontSize: baseFontSize
     };
-  }, [settings.resolution, settings.aspectRatio, video]);
+  }, [settings.resolution, settings.aspectRatio, settings.lineHeight, settings.letterSpacing, video]);
 
   // Pre-generate character lookup table (only for random mode)
   const charLookup = useMemo(() => {
@@ -123,11 +134,14 @@ export function useAsciiRenderer(
     return chars;
   }, [settings.characters, settings.randomSeed, settings.mappingMode, gridDimensions]);
 
-  // Shuffled character string for gradient mode
+  // Shuffled character string for gradient modes
   const gradientChars = useMemo(() => {
-    if (settings.characters.length <= 1 || settings.mappingMode !== 'gradient') return settings.characters;
-    return shuffleString(settings.characters, settings.gradientSeed);
-  }, [settings.characters, settings.gradientSeed, settings.mappingMode]);
+    if (settings.characters.length <= 1 || (settings.mappingMode !== 'gradient' && settings.mappingMode !== 'hue')) {
+      return settings.characters;
+    }
+    const seed = settings.mappingMode === 'hue' ? settings.hueSeed : settings.gradientSeed;
+    return shuffleString(settings.characters, seed);
+  }, [settings.characters, settings.gradientSeed, settings.hueSeed, settings.mappingMode]);
 
   useEffect(() => {
     if (!canvasRef.current || !video || !isVideoReady) return;
@@ -193,6 +207,7 @@ export function useAsciiRenderer(
       const singleChar = settings.characters || 'M';
       const isColored = settings.colorMode === 'colored';
       const isGradientMode = settings.mappingMode === 'gradient';
+      const isHueMode = settings.mappingMode === 'hue';
       const { brightness, contrast, gamma, invert, minWeight, maxWeight, foregroundColor } = settings;
 
       // Render each character
@@ -218,6 +233,9 @@ export function useAsciiRenderer(
           let char: string;
           if (!useMultipleChars) {
             char = singleChar;
+          } else if (isHueMode) {
+            // Hue mode: map hue from video to character
+            char = getCharByHue(gradientChars, pixel.hue);
           } else if (isGradientMode) {
             // Gradient mode: map luminance to character
             char = getCharByLuminance(gradientChars, luminance);

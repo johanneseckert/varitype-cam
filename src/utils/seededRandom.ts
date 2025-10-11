@@ -56,6 +56,24 @@ export function getCharByLuminance(
 }
 
 /**
+ * Select a character based on hue value (0-360)
+ * Maps hue to character index
+ */
+export function getCharByHue(
+  chars: string,
+  hue: number
+): string {
+  if (!chars || chars.length === 0) return ' ';
+  if (chars.length === 1) return chars[0];
+
+  // Map hue (0-360) to character index
+  const normalized = hue / 360;
+  const index = Math.floor(normalized * chars.length);
+  // Clamp to valid range
+  return chars[Math.min(index, chars.length - 1)];
+}
+
+/**
  * Shuffle a string of characters using a seed
  */
 export function shuffleString(str: string, seed: number): string {

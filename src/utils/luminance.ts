@@ -103,6 +103,37 @@ export function sampleVideoFrame(
 }
 
 /**
+ * Convert RGB to HSL and get hue value (0-360)
+ */
+export function rgbToHue(r: number, g: number, b: number): number {
+  const rNorm = r / 255;
+  const gNorm = g / 255;
+  const bNorm = b / 255;
+
+  const max = Math.max(rNorm, gNorm, bNorm);
+  const min = Math.min(rNorm, gNorm, bNorm);
+  const delta = max - min;
+
+  if (delta === 0) {
+    return 0; // Grayscale - no hue
+  }
+
+  let hue = 0;
+  if (max === rNorm) {
+    hue = ((gNorm - bNorm) / delta) % 6;
+  } else if (max === gNorm) {
+    hue = (bNorm - rNorm) / delta + 2;
+  } else {
+    hue = (rNorm - gNorm) / delta + 4;
+  }
+
+  hue = Math.round(hue * 60);
+  if (hue < 0) hue += 360;
+
+  return hue;
+}
+
+/**
  * Get pixel data from ImageData at a specific grid position
  */
 export function getPixelFromImageData(
@@ -110,7 +141,7 @@ export function getPixelFromImageData(
   col: number,
   row: number,
   cols: number
-): { r: number; g: number; b: number; luminance: number } {
+): { r: number; g: number; b: number; luminance: number; hue: number } {
   const index = (row * cols + col) * 4;
   const r = imageData.data[index];
   const g = imageData.data[index + 1];
@@ -120,7 +151,8 @@ export function getPixelFromImageData(
     r,
     g,
     b,
-    luminance: calculateLuminance(r, g, b)
+    luminance: calculateLuminance(r, g, b),
+    hue: rgbToHue(r, g, b)
   };
 }
 

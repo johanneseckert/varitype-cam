@@ -35,10 +35,11 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
         render: (get) => get('Character Set.preset') === 'Custom'
       },
       mappingMode: {
-        value: 'random' as 'random' | 'gradient',
+        value: 'random' as 'random' | 'gradient' | 'hue',
         options: {
           'Random Position': 'random',
-          'Luminance Gradient': 'gradient'
+          'Map to Brightness': 'gradient',
+          'Map to Color': 'hue'
         },
         label: 'Mapping Mode',
         render: (get) => {
@@ -75,6 +76,20 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
             ? get('Character Set.customChars')
             : ASCII_PRESETS[preset];
           return chars.length > 1 && get('Character Set.mappingMode') === 'random';
+        }
+      },
+      hueSeed: {
+        value: 42,
+        min: 0,
+        max: 100,
+        step: 1,
+        label: 'Hue Seed',
+        render: (get) => {
+          const preset = get('Character Set.preset');
+          const chars = preset === 'Custom'
+            ? get('Character Set.customChars')
+            : ASCII_PRESETS[preset];
+          return chars.length > 1 && get('Character Set.mappingMode') === 'hue';
         }
       }
     }),
@@ -153,10 +168,17 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
       },
       lineHeight: {
         value: 1.0,
-        min: 0.5,
-        max: 2.0,
-        step: 0.05,
+        min: 0.6,
+        max: 1.6,
+        step: 0.1,
         label: 'Line Height'
+      },
+      letterSpacing: {
+        value: 1.0,
+        min: 0.6,
+        max: 1.6,
+        step: 0.1,
+        label: 'Letter Spacing'
       }
     }),
 
@@ -178,6 +200,7 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
     randomSeed: settings.randomSeed,
     mappingMode: settings.mappingMode,
     gradientSeed: settings.gradientSeed,
+    hueSeed: settings.hueSeed,
     resolution: settings.resolution,
     aspectRatio: settings.aspectRatio,
     colorMode: settings.colorMode,
@@ -189,7 +212,8 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
     invert: settings.invert,
     minWeight: settings.minWeight,
     maxWeight: settings.maxWeight,
-    lineHeight: settings.lineHeight
+    lineHeight: settings.lineHeight,
+    letterSpacing: settings.letterSpacing
   });
 
   return (
