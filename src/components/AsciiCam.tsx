@@ -23,18 +23,77 @@ export function AsciiCam() {
         label: 'Custom Characters',
         render: (get) => get('Character Set.preset') === 'Custom'
       },
+      mappingMode: {
+        value: 'random' as 'random' | 'gradient',
+        options: {
+          'Random Position': 'random',
+          'Luminance Gradient': 'gradient'
+        },
+        label: 'Mapping Mode',
+        render: (get) => {
+          const preset = get('Character Set.preset');
+          const chars = preset === 'Custom'
+            ? get('Character Set.customChars')
+            : ASCII_PRESETS[preset];
+          return chars.length > 1;
+        }
+      },
       randomSeed: {
         value: 12345,
         min: 0,
         max: 999999,
         step: 1,
-        label: 'Random Seed'
+        label: 'Random Seed',
+        render: (get) => {
+          const preset = get('Character Set.preset');
+          const chars = preset === 'Custom'
+            ? get('Character Set.customChars')
+            : ASCII_PRESETS[preset];
+          return chars.length > 1 && get('Character Set.mappingMode') === 'random';
+        }
       },
       regenerate: button(() => {
         // Generate new random seed
         const newSeed = Math.floor(Math.random() * 999999);
         settings.randomSeed = newSeed;
-      }, { label: '🎲 New Seed' })
+      }, {
+        label: '🎲 Shuffle',
+        render: (get) => {
+          const preset = get('Character Set.preset');
+          const chars = preset === 'Custom'
+            ? get('Character Set.customChars')
+            : ASCII_PRESETS[preset];
+          return chars.length > 1 && get('Character Set.mappingMode') === 'random';
+        }
+      }),
+      gradientSeed: {
+        value: 54321,
+        min: 0,
+        max: 999999,
+        step: 1,
+        label: 'Gradient Order',
+        render: (get) => {
+          const preset = get('Character Set.preset');
+          const chars = preset === 'Custom'
+            ? get('Character Set.customChars')
+            : ASCII_PRESETS[preset];
+          return chars.length > 1 && get('Character Set.mappingMode') === 'gradient';
+        }
+      },
+      regenerateGradient: button(() => {
+        // Generate new gradient seed
+        const newSeed = Math.floor(Math.random() * 999999);
+        settings.gradientSeed = newSeed;
+      }, {
+        label: '🎲 Shuffle Gradient',
+        render: (get) => {
+          const preset = get('Character Set.preset');
+          const chars = preset === 'Custom'
+            ? get('Character Set.customChars')
+            : ASCII_PRESETS[preset];
+          return chars.length > 1 && get('Character Set.mappingMode') === 'gradient';
+        }
+      })
     }),
 
     'Appearance': folder({
@@ -73,12 +132,17 @@ export function AsciiCam() {
     }),
 
     'Grid': folder({
+      aspectRatio: {
+        value: '16:9',
+        options: ['16:9', '4:3', '1:1'],
+        label: 'Aspect Ratio'
+      },
       resolution: {
         value: 100,
         min: 20,
         max: 200,
         step: 1,
-        label: 'Resolution (width)'
+        label: 'Resolution (chars wide)'
       },
       fontSize: {
         value: 16,
@@ -86,11 +150,6 @@ export function AsciiCam() {
         max: 40,
         step: 1,
         label: 'Font Size (px)'
-      },
-      aspectRatio: {
-        value: '16:9',
-        options: ['16:9', '4:3', '1:1'],
-        label: 'Aspect Ratio'
       }
     }),
 
@@ -127,6 +186,8 @@ export function AsciiCam() {
   useAsciiRenderer(canvasRef, video, isReady, {
     characters,
     randomSeed: settings.randomSeed,
+    mappingMode: settings.mappingMode,
+    gradientSeed: settings.gradientSeed,
     resolution: settings.resolution,
     fontSize: settings.fontSize,
     aspectRatio: settings.aspectRatio,

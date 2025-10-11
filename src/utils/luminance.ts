@@ -38,36 +38,41 @@ export function mapToFontWeight(
 }
 
 /**
- * Sample pixel data from a video frame at a specific position
+ * Sample entire video frame at once for better performance
  */
-export function samplePixel(
+export function sampleVideoFrame(
   videoElement: HTMLVideoElement,
   tempCanvas: HTMLCanvasElement,
   tempCtx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  videoWidth: number,
-  videoHeight: number
-): { r: number; g: number; b: number; luminance: number } {
-  // Draw the current video frame to the temp canvas
-  if (tempCanvas.width !== videoWidth || tempCanvas.height !== videoHeight) {
-    tempCanvas.width = videoWidth;
-    tempCanvas.height = videoHeight;
+  cols: number,
+  rows: number
+): ImageData {
+  // Resize temp canvas to match grid resolution (much smaller!)
+  if (tempCanvas.width !== cols || tempCanvas.height !== rows) {
+    tempCanvas.width = cols;
+    tempCanvas.height = rows;
   }
 
-  tempCtx.drawImage(videoElement, 0, 0, videoWidth, videoHeight);
+  // Draw video scaled down to grid resolution
+  tempCtx.drawImage(videoElement, 0, 0, cols, rows);
 
-  // Get pixel data
-  const imageData = tempCtx.getImageData(
-    Math.floor(x),
-    Math.floor(y),
-    1,
-    1
-  ).data;
+  // Get all pixel data at once
+  return tempCtx.getImageData(0, 0, cols, rows);
+}
 
-  const r = imageData[0];
-  const g = imageData[1];
-  const b = imageData[2];
+/**
+ * Get pixel data from ImageData at a specific grid position
+ */
+export function getPixelFromImageData(
+  imageData: ImageData,
+  col: number,
+  row: number,
+  cols: number
+): { r: number; g: number; b: number; luminance: number } {
+  const index = (row * cols + col) * 4;
+  const r = imageData.data[index];
+  const g = imageData.data[index + 1];
+  const b = imageData.data[index + 2];
 
   return {
     r,
