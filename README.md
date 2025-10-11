@@ -1,73 +1,83 @@
-# React + TypeScript + Vite
+# Variable ASCII Cam
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A real-time webcam to ASCII art converter with a twist: instead of mapping ASCII characters to luminance values, it uses a **variable font's weight axis** (100-900) to represent brightness.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Variable Font Weight Mapping**: Uses Geist Mono's font-weight axis (100-900) to map luminance values
+- **Real-time Performance**: Smooth 30-60 FPS rendering with optimized canvas operations
+- **Multiple Character Presets**:
+  - Blocks: `█▓▒░`
+  - Classic ASCII: ` .:-=+*#%@`
+  - Dots: `·⋅•●○`
+  - Bars: `▁▂▃▄▅▆▇█`
+  - Alphanumeric, Binary, Singles, and Custom
+- **Extensive Controls**:
+  - Resolution slider (20-200 characters)
+  - Font size adjustment
+  - Aspect ratio selection (16:9, 4:3, 1:1)
+  - Weight mapping range customization
+  - Color modes (monochrome/colored)
+  - Video filters (brightness, contrast, invert)
+  - Seeded randomization for multi-character sets
+- **PNG Export**: Export the current canvas as a PNG image
+- **Modern Dark UI**: Sleek dark mode design with moody gradient shadows
 
-## React Compiler
+## Getting Started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Prerequisites
 
-## Expanding the ESLint configuration
+- Node.js (v16 or higher)
+- A modern web browser with webcam support
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Installation
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Development
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run dev
 ```
+
+Open your browser and allow webcam access when prompted.
+
+### Build
+
+```bash
+npm run build
+```
+
+The built files will be in the `dist` directory.
+
+## How It Works
+
+1. **Video Capture**: Captures webcam feed using `getUserMedia()`
+2. **Pixel Sampling**: Samples pixels at grid positions based on resolution
+3. **Luminance Calculation**: Converts RGB values to luminance (0-255)
+4. **Filter Application**: Applies brightness, contrast, and invert filters
+5. **Weight Mapping**: Maps luminance to font-weight (configurable range)
+6. **Canvas Rendering**: Draws characters with varying font weights
+
+## Technologies
+
+- React 19
+- TypeScript
+- Vite
+- Leva (UI controls)
+- HTML5 Canvas API
+- WebRTC (getUserMedia)
+- Geist Mono Variable Font
+
+## Future Enhancements
+
+- Vector (SVG) export
+- Video recording/export
+- Additional aspect ratios
+- Performance optimizations for higher resolutions
+
+## License
+
+MIT
