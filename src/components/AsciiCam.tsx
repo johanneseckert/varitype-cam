@@ -1,9 +1,10 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useMemo } from 'react';
 import { useControls, button, folder } from 'leva';
 import { useWebcam } from '../hooks/useWebcam';
 import { useAsciiRenderer } from '../hooks/useAsciiRenderer';
 import { useImageExport } from '../hooks/useImageExport';
 import { ASCII_PRESETS, PRESET_OPTIONS, type PresetName } from '../constants/asciiPresets';
+import { FONTS, DEFAULT_FONT, type FontId } from '../constants/fonts';
 
 interface AsciiCamProps {
   onCameraStart?: () => void;
@@ -20,6 +21,82 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
       onCameraStart();
     }
   }, [isReady, onCameraStart]);
+
+  // Create font options for Leva dropdown
+  const fontOptions = useMemo(() => {
+    return Object.fromEntries(
+      Object.values(FONTS).map(font => [font.name, font.id])
+    );
+  }, []);
+
+  // Build dynamic font controls based on all possible secondary axes
+  const fontControls = useMemo(() => {
+    const controls: any = {
+      fontId: {
+        value: DEFAULT_FONT,
+        options: fontOptions,
+        label: 'Font Family'
+      },
+      minAxis: {
+        value: 100,
+        min: 1,
+        max: 2050,
+        step: 10,
+        label: 'Min Axis (dark)'
+      },
+      maxAxis: {
+        value: 900,
+        min: 1,
+        max: 2050,
+        step: 10,
+        label: 'Max Axis (bright)'
+      }
+    };
+
+    // Add secondary axis controls for Gridlite PE (conditionally rendered)
+    controls.BACK = {
+      value: 200,
+      min: 1,
+      max: 900,
+      step: 10,
+      label: 'Background',
+      render: (get: any) => get('Font.fontId') === 'gridlite-pe'
+    };
+    controls.RECT = {
+      value: 200,
+      min: 1,
+      max: 900,
+      step: 10,
+      label: 'Rectangle',
+      render: (get: any) => get('Font.fontId') === 'gridlite-pe'
+    };
+    controls.ELSH = {
+      value: 3,
+      min: 1,
+      max: 4,
+      step: 1,
+      label: 'Shape',
+      render: (get: any) => get('Font.fontId') === 'gridlite-pe'
+    };
+
+    // Add spacing controls at the end
+    controls.lineHeight = {
+      value: 1.0,
+      min: 0.6,
+      max: 1.6,
+      step: 0.1,
+      label: 'Line Height'
+    };
+    controls.letterSpacing = {
+      value: 1.0,
+      min: 0.6,
+      max: 1.6,
+      step: 0.1,
+      label: 'Letter Spacing'
+    };
+
+    return controls;
+  }, [fontOptions]);
 
   // Leva controls
   const settings = useControls({
@@ -43,7 +120,7 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
         },
         label: 'Mapping Mode',
         render: (get) => {
-          const preset = get('Character Set.preset');
+          const preset = get('Character Set.preset') as PresetName;
           const chars = preset === 'Custom'
             ? get('Character Set.customChars')
             : ASCII_PRESETS[preset];
@@ -57,7 +134,7 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
         step: 1,
         label: 'Gradient Seed',
         render: (get) => {
-          const preset = get('Character Set.preset');
+          const preset = get('Character Set.preset') as PresetName;
           const chars = preset === 'Custom'
             ? get('Character Set.customChars')
             : ASCII_PRESETS[preset];
@@ -71,7 +148,7 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
         step: 1,
         label: 'Position Seed',
         render: (get) => {
-          const preset = get('Character Set.preset');
+          const preset = get('Character Set.preset') as PresetName;
           const chars = preset === 'Custom'
             ? get('Character Set.customChars')
             : ASCII_PRESETS[preset];
@@ -85,7 +162,7 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
         step: 1,
         label: 'Hue Seed',
         render: (get) => {
-          const preset = get('Character Set.preset');
+          const preset = get('Character Set.preset') as PresetName;
           const chars = preset === 'Custom'
             ? get('Character Set.customChars')
             : ASCII_PRESETS[preset];
@@ -151,41 +228,10 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
       }
     }),
 
-    'Font': folder({
-      minWeight: {
-        value: 100,
-        min: 100,
-        max: 900,
-        step: 50,
-        label: 'Min Weight (dark)'
-      },
-      maxWeight: {
-        value: 900,
-        min: 100,
-        max: 900,
-        step: 50,
-        label: 'Max Weight (bright)'
-      },
-      lineHeight: {
-        value: 1.0,
-        min: 0.6,
-        max: 1.6,
-        step: 0.1,
-        label: 'Line Height'
-      },
-      letterSpacing: {
-        value: 1.0,
-        min: 0.6,
-        max: 1.6,
-        step: 0.1,
-        label: 'Letter Spacing'
-      }
-    }),
+    'Font': folder(fontControls),
 
     'Export': folder({
-      exportPNG: button(() => exportToPNG(canvasRef.current), {
-        label: '📸 Export PNG'
-      })
+      exportPNG: button(() => exportToPNG(canvasRef.current))
     }, { collapsed: true })
   });
 
@@ -194,26 +240,45 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
     ? settings.customChars || 'M'
     : ASCII_PRESETS[settings.preset];
 
+  // Build secondary axes object from settings
+  const secondaryAxes = useMemo(() => {
+    const axes: Record<string, number> = {};
+    const fontId = String(settings.fontId);
+    const selectedFont = FONTS[fontId as FontId];
+
+    if (selectedFont?.secondaryAxes) {
+      selectedFont.secondaryAxes.forEach(axis => {
+        // Get value from settings or use default
+        const settingsValue = (settings as any)[axis.name];
+        axes[axis.name] = typeof settingsValue === 'number' ? settingsValue : (axis.default ?? axis.min);
+      });
+    }
+
+    return Object.keys(axes).length > 0 ? axes : undefined;
+  }, [settings]);
+
   // Use the renderer hook
   useAsciiRenderer(canvasRef, video, isReady, {
+    fontId: String(settings.fontId) as FontId,
+    secondaryAxes,
     characters,
-    randomSeed: settings.randomSeed,
-    mappingMode: settings.mappingMode,
-    gradientSeed: settings.gradientSeed,
-    hueSeed: settings.hueSeed,
-    resolution: settings.resolution,
-    aspectRatio: settings.aspectRatio,
-    colorMode: settings.colorMode,
-    foregroundColor: settings.foregroundColor,
-    backgroundColor: settings.backgroundColor,
-    brightness: settings.brightness,
-    contrast: settings.contrast,
-    gamma: settings.gamma,
-    invert: settings.invert,
-    minWeight: settings.minWeight,
-    maxWeight: settings.maxWeight,
-    lineHeight: settings.lineHeight,
-    letterSpacing: settings.letterSpacing
+    randomSeed: Number(settings.randomSeed),
+    mappingMode: settings.mappingMode as 'random' | 'gradient' | 'hue',
+    gradientSeed: Number(settings.gradientSeed),
+    hueSeed: Number(settings.hueSeed),
+    resolution: Number(settings.resolution),
+    aspectRatio: String(settings.aspectRatio),
+    colorMode: settings.colorMode as 'monochrome' | 'colored',
+    foregroundColor: String(settings.foregroundColor),
+    backgroundColor: String(settings.backgroundColor),
+    brightness: Number(settings.brightness),
+    contrast: Number(settings.contrast),
+    gamma: Number(settings.gamma),
+    invert: Boolean(settings.invert),
+    minAxis: Number(settings.minAxis),
+    maxAxis: Number(settings.maxAxis),
+    lineHeight: Number(settings.lineHeight),
+    letterSpacing: Number(settings.letterSpacing)
   });
 
   return (

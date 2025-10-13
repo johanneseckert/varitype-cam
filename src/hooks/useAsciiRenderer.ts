@@ -5,11 +5,16 @@ import {
   applyBrightness,
   applyContrast,
   applyGamma,
-  mapToFontWeight
+  mapToFontAxis
 } from '../utils/luminance';
 import { getRandomChar, getCharByLuminance, getCharByHue, shuffleString } from '../utils/seededRandom';
+import { FONTS, DEFAULT_FONT, type FontId } from '../constants/fonts';
 
 export interface RenderSettings {
+  // Font settings
+  fontId: FontId;
+  secondaryAxes?: Record<string, number>; // Dynamic secondary axis values
+
   // Character settings
   characters: string;
   randomSeed: number;
@@ -30,15 +35,15 @@ export interface RenderSettings {
   gamma: number;
   invert: boolean;
 
-  // Weight mapping
-  minWeight: number;
-  maxWeight: number;
+  // Primary axis mapping (luminance-driven)
+  minAxis: number;
+  maxAxis: number;
   lineHeight: number;
   letterSpacing: number;
 }
 
 export function useAsciiRenderer(
-  canvasRef: React.RefObject<HTMLCanvasElement>,
+  canvasRef: React.RefObject<HTMLCanvasElement | null>,
   video: HTMLVideoElement | null,
   isVideoReady: boolean,
   settings: RenderSettings
@@ -51,8 +56,9 @@ export function useAsciiRenderer(
 
   // Memoize grid dimensions and canvas size
   const gridDimensions = useMemo(() => {
-    // Character aspect ratio (monospace chars are typically ~0.6 width/height ratio)
-    const charAspectRatio = 0.6;
+    // Get font configuration
+    const font = FONTS[settings.fontId] || FONTS[DEFAULT_FONT];
+    const charAspectRatio = font.charAspectRatio;
 
     // Target canvas size (adjust based on viewport, but keep it reasonable)
     const targetCanvasWidth = Math.min(window.innerWidth * 0.8, 1600);
@@ -117,7 +123,7 @@ export function useAsciiRenderer(
       charHeight: rowHeight, // Use row height for character spacing
       fontSize: baseFontSize
     };
-  }, [settings.resolution, settings.aspectRatio, settings.lineHeight, settings.letterSpacing, video]);
+  }, [settings.resolution, settings.aspectRatio, settings.lineHeight, settings.letterSpacing, settings.fontId, video]);
 
   // Pre-generate character lookup table (only for random mode)
   const charLookup = useMemo(() => {
@@ -208,7 +214,7 @@ export function useAsciiRenderer(
       const isColored = settings.colorMode === 'colored';
       const isGradientMode = settings.mappingMode === 'gradient';
       const isHueMode = settings.mappingMode === 'hue';
-      const { brightness, contrast, gamma, invert, minWeight, maxWeight, foregroundColor } = settings;
+      const { brightness, contrast, gamma, invert, minAxis, maxAxis, foregroundColor } = settings;
 
       // Render each character
       for (let row = 0; row < rows; row++) {
@@ -226,8 +232,11 @@ export function useAsciiRenderer(
             luminance = 255 - luminance;
           }
 
-          // Map to font weight
-          const fontWeight = mapToFontWeight(luminance, minWeight, maxWeight);
+          // Get font configuration
+          const font = FONTS[settings.fontId] || FONTS[DEFAULT_FONT];
+
+          // Map to primary axis value (luminance-driven)
+          const primaryAxisValue = mapToFontAxis(luminance, minAxis, maxAxis);
 
           // Select character based on mapping mode
           let char: string;
@@ -252,8 +261,37 @@ export function useAsciiRenderer(
             ctx.fillStyle = foregroundColor;
           }
 
-          // Set font with variable weight
-          ctx.font = `${fontWeight} ${fontSize}px 'Geist Mono Variable',monospace`;
+          // Set font with variable axes
+          // Build font-variation-settings string for all axes
+          const fontVariationParts: string[] = [];
+
+          // Add primary axis (luminance-driven)
+          fontVariationParts.push(`'${font.primaryAxis.name}' ${primaryAxisValue}`);
+
+          // Add secondary axes (user-controlled) if present
+          if (font.secondaryAxes && settings.secondaryAxes) {
+            font.secondaryAxes.forEach(axis => {
+              const value = settings.secondaryAxes?.[axis.name] ?? axis.default ?? axis.min;
+              fontVariationParts.push(`'${axis.name}' ${value}`);
+            });
+          }
+
+          const fontVariationSettings = fontVariationParts.join(', ');
+
+          // For canvas, if primary axis is 'wght', we can use numeric weight in font property
+          // Other axes need font-variation-settings (limited browser support in canvas)
+          if (font.primaryAxis.name === 'wght') {
+            ctx.font = `${primaryAxisValue} ${fontSize}px '${font.family}', monospace`;
+          } else {
+            ctx.font = `${fontSize}px '${font.family}', monospace`;
+          }
+
+          // Note: Canvas 2D has limited support for font-variation-settings
+          // Some browsers may not render non-weight axes correctly
+          if (fontVariationParts.length > 1) {
+            // @ts-ignore - font-variation-settings is not in TS types but works in some browsers
+            ctx.fontVariationSettings = fontVariationSettings;
+          }
 
           // Draw character
           const x = col * charWidth + charWidth / 2;

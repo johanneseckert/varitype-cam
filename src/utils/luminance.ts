@@ -38,15 +38,16 @@ export function applyGamma(luminance: number, gamma: number): number {
 }
 
 /**
- * Map luminance value (0-255) to font weight (min-max)
+ * Map luminance value (0-255) to font axis value (min-max)
+ * Works for any variable font axis (weight, width, etc.)
  */
-export function mapToFontWeight(
+export function mapToFontAxis(
   luminance: number,
-  minWeight: number,
-  maxWeight: number
+  minAxis: number,
+  maxAxis: number
 ): number {
   const normalized = luminance / 255;
-  return Math.round(minWeight + normalized * (maxWeight - minWeight));
+  return Math.round(minAxis + normalized * (maxAxis - minAxis));
 }
 
 /**
