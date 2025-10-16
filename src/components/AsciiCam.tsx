@@ -256,8 +256,8 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
 
     if (selectedFont?.secondaryAxes) {
       selectedFont.secondaryAxes.forEach(axis => {
-        // Get value from settings or use default
-        const settingsValue = (settings as any)[axis.name];
+        // Get value from the Font panel or use default
+        const settingsValue = (fontSettings as any)[axis.name];
         axes[axis.name] = typeof settingsValue === 'number' ? settingsValue : (axis.default ?? axis.min);
       });
     }

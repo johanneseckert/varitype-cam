@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import {
   sampleVideoFrame,
   getPixelFromImageData,
@@ -53,6 +53,7 @@ export function useAsciiRenderer(
   const tempCtxRef = useRef<CanvasRenderingContext2D | null>(null);
   const lastFrameTime = useRef<number>(0);
   const fpsInterval = 1000 / 30; // Target 30 FPS
+  const [isFontReady, setIsFontReady] = useState<boolean>(true);
 
   // Memoize grid dimensions and canvas size
   const gridDimensions = useMemo(() => {
@@ -125,6 +126,34 @@ export function useAsciiRenderer(
     };
   }, [settings.resolution, settings.aspectRatio, settings.lineHeight, settings.letterSpacing, settings.fontId, video]);
 
+  // Ensure selected font is loaded before rendering (prevents fallback sticking)
+  useEffect(() => {
+    const font = FONTS[settings.fontId] || FONTS[DEFAULT_FONT];
+    const { fontSize } = gridDimensions;
+
+    // Reset flag and try to load font face if Font Loading API is available
+    setIsFontReady(false);
+
+    let cancelled = false;
+    const ensureFont = async () => {
+      try {
+        // Attempt to load this font-family at the current size
+        if (document && (document as any).fonts && typeof (document as any).fonts.load === 'function') {
+          const weight = settings.minAxis && settings.maxAxis && (FONTS[settings.fontId]?.primaryAxis.name === 'wght')
+            ? Math.round((settings.minAxis + settings.maxAxis) / 2)
+            : 'normal';
+          await (document as any).fonts.load(`${weight} ${Math.max(1, Math.round(fontSize))}px '${font.family}'`);
+          await (document as any).fonts.ready;
+        }
+      } finally {
+        if (!cancelled) setIsFontReady(true);
+      }
+    };
+
+    ensureFont();
+    return () => { cancelled = true; };
+  }, [settings.fontId, gridDimensions.fontSize, settings.minAxis, settings.maxAxis]);
+
   // Pre-generate character lookup table (only for random mode)
   const charLookup = useMemo(() => {
     if (settings.characters.length <= 1 || settings.mappingMode !== 'random') return null;
@@ -151,6 +180,7 @@ export function useAsciiRenderer(
 
   useEffect(() => {
     if (!canvasRef.current || !video || !isVideoReady) return;
+    if (!isFontReady) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d', { alpha: false });
@@ -291,12 +321,9 @@ export function useAsciiRenderer(
             ctx.font = `${fontSize}px '${font.family}', monospace`;
           }
 
-          // Note: Canvas 2D has limited support for font-variation-settings
-          // Some browsers may not render non-weight axes correctly
-          if (fontVariationParts.length > 1) {
-            // @ts-ignore - font-variation-settings is not in TS types but works in some browsers
-            ctx.fontVariationSettings = fontVariationSettings;
-          }
+          // Apply all variation axes (including primary) so non-wght fonts update
+          // @ts-ignore - font-variation-settings is not in TS types but works in modern browsers
+          ctx.fontVariationSettings = fontVariationSettings;
 
           // Draw character
           const x = col * charWidth + charWidth / 2;
@@ -315,6 +342,6 @@ export function useAsciiRenderer(
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [canvasRef, video, isVideoReady, settings, gridDimensions, charLookup, gradientChars]);
+  }, [canvasRef, video, isVideoReady, isFontReady, settings, gridDimensions, charLookup, gradientChars]);
 }
 
