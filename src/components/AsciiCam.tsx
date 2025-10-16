@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo } from 'react';
+import { useRef, useEffect, useMemo, useState } from 'react';
 import { useControls, button, folder } from 'leva';
 import { useWebcam } from '../hooks/useWebcam';
 import { useAsciiRenderer } from '../hooks/useAsciiRenderer';
@@ -29,76 +29,7 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
     );
   }, []);
 
-  // Build dynamic font controls based on all possible secondary axes
-  const fontControls = useMemo(() => {
-    const controls: any = {
-      fontId: {
-        value: DEFAULT_FONT,
-        options: fontOptions,
-        label: 'Font Family'
-      },
-      minAxis: {
-        value: 100,
-        min: 1,
-        max: 2050,
-        step: 10,
-        label: 'Min Axis (dark)'
-      },
-      maxAxis: {
-        value: 900,
-        min: 1,
-        max: 2050,
-        step: 10,
-        label: 'Max Axis (bright)'
-      }
-    };
-
-    // Add secondary axis controls for Gridlite PE (conditionally rendered)
-    controls.BACK = {
-      value: 200,
-      min: 1,
-      max: 900,
-      step: 10,
-      label: 'Background',
-      render: (get: any) => get('Font.fontId') === 'gridlite-pe'
-    };
-    controls.RECT = {
-      value: 200,
-      min: 1,
-      max: 900,
-      step: 10,
-      label: 'Rectangle',
-      render: (get: any) => get('Font.fontId') === 'gridlite-pe'
-    };
-    controls.ELSH = {
-      value: 3,
-      min: 1,
-      max: 4,
-      step: 1,
-      label: 'Shape',
-      render: (get: any) => get('Font.fontId') === 'gridlite-pe'
-    };
-
-    // Add spacing controls at the end
-    controls.lineHeight = {
-      value: 1.0,
-      min: 0.6,
-      max: 1.6,
-      step: 0.1,
-      label: 'Line Height'
-    };
-    controls.letterSpacing = {
-      value: 1.0,
-      min: 0.6,
-      max: 1.6,
-      step: 0.1,
-      label: 'Letter Spacing'
-    };
-
-    return controls;
-  }, [fontOptions]);
-
-  // Leva controls
+  // Leva controls (everything except Font-specific controls)
   const settings = useControls({
     'Character Set': folder({
       preset: {
@@ -228,12 +159,89 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
       }
     }),
 
-    'Font': folder(fontControls),
-
     'Export': folder({
       exportPNG: button(() => exportToPNG(canvasRef.current))
     }, { collapsed: true })
   });
+
+  // Separate Font controls so we can rebuild min/max when font changes
+  const [fontIdLocal, setFontIdLocal] = useState<FontId>(DEFAULT_FONT);
+  const [fontSettings, setFontSettings] = useControls(
+    'Font',
+    () => {
+      const selectedFont = FONTS[fontIdLocal] || FONTS[DEFAULT_FONT];
+      const primary = selectedFont.primaryAxis;
+      return {
+        fontId: {
+          value: fontIdLocal,
+          options: fontOptions,
+          label: 'Font Family',
+          onChange: (next: FontId) => {
+            setFontIdLocal(next);
+            // Force reset min/max values to new font's range
+            const newFont = FONTS[next];
+            setTimeout(() => {
+              setFontSettings({ minAxis: newFont.primaryAxis.min });
+              setFontSettings({ maxAxis: newFont.primaryAxis.max });
+            }, 0);
+          }
+        },
+        minAxis: {
+          value: primary.min,
+          min: primary.min,
+          max: primary.max,
+          step: 1,
+          label: `Min ${primary.label} (dark)`
+        },
+        maxAxis: {
+          value: primary.max,
+          min: primary.min,
+          max: primary.max,
+          step: 1,
+          label: `Max ${primary.label} (bright)`
+        },
+        BACK: {
+          value: 200,
+          min: 1,
+          max: 900,
+          step: 10,
+          label: 'Background',
+          render: () => fontIdLocal === 'gridlite-pe'
+        },
+        RECT: {
+          value: 200,
+          min: 1,
+          max: 900,
+          step: 10,
+          label: 'Rectangle',
+          render: () => fontIdLocal === 'gridlite-pe'
+        },
+        ELSH: {
+          value: 3,
+          min: 1,
+          max: 4,
+          step: 1,
+          label: 'Shape',
+          render: () => fontIdLocal === 'gridlite-pe'
+        },
+        lineHeight: {
+          value: 1.0,
+          min: 0.6,
+          max: 1.6,
+          step: 0.1,
+          label: 'Line Height'
+        },
+        letterSpacing: {
+          value: 1.0,
+          min: 0.6,
+          max: 1.6,
+          step: 0.1,
+          label: 'Letter Spacing'
+        }
+      };
+    },
+    [fontIdLocal]
+  );
 
   // Determine which characters to use
   const characters = settings.preset === 'Custom'
@@ -243,7 +251,7 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
   // Build secondary axes object from settings
   const secondaryAxes = useMemo(() => {
     const axes: Record<string, number> = {};
-    const fontId = String(settings.fontId);
+    const fontId = String(fontSettings.fontId);
     const selectedFont = FONTS[fontId as FontId];
 
     if (selectedFont?.secondaryAxes) {
@@ -255,31 +263,36 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
     }
 
     return Object.keys(axes).length > 0 ? axes : undefined;
-  }, [settings]);
+  }, [fontSettings]);
 
   // Use the renderer hook
-  useAsciiRenderer(canvasRef, video, isReady, {
-    fontId: String(settings.fontId) as FontId,
-    secondaryAxes,
-    characters,
-    randomSeed: Number(settings.randomSeed),
-    mappingMode: settings.mappingMode as 'random' | 'gradient' | 'hue',
-    gradientSeed: Number(settings.gradientSeed),
-    hueSeed: Number(settings.hueSeed),
-    resolution: Number(settings.resolution),
-    aspectRatio: String(settings.aspectRatio),
-    colorMode: settings.colorMode as 'monochrome' | 'colored',
-    foregroundColor: String(settings.foregroundColor),
-    backgroundColor: String(settings.backgroundColor),
-    brightness: Number(settings.brightness),
-    contrast: Number(settings.contrast),
-    gamma: Number(settings.gamma),
-    invert: Boolean(settings.invert),
-    minAxis: Number(settings.minAxis),
-    maxAxis: Number(settings.maxAxis),
-    lineHeight: Number(settings.lineHeight),
-    letterSpacing: Number(settings.letterSpacing)
-  });
+  useAsciiRenderer(
+    canvasRef,
+    video,
+    isReady,
+    {
+      fontId: String(fontSettings?.fontId || DEFAULT_FONT) as FontId,
+      secondaryAxes,
+      characters,
+      randomSeed: Number(settings.randomSeed),
+      mappingMode: settings.mappingMode as 'random' | 'gradient' | 'hue',
+      gradientSeed: Number(settings.gradientSeed),
+      hueSeed: Number(settings.hueSeed),
+      resolution: Number(settings.resolution),
+      aspectRatio: String(settings.aspectRatio),
+      colorMode: settings.colorMode as 'monochrome' | 'colored',
+      foregroundColor: String(settings.foregroundColor),
+      backgroundColor: String(settings.backgroundColor),
+      brightness: Number(settings.brightness),
+      contrast: Number(settings.contrast),
+      gamma: Number(settings.gamma),
+      invert: Boolean(settings.invert),
+      minAxis: Number(fontSettings?.minAxis) || 100,
+      maxAxis: Number(fontSettings?.maxAxis) || 900,
+      lineHeight: Number(fontSettings?.lineHeight) || 1.0,
+      letterSpacing: Number(fontSettings?.letterSpacing) || 1.0
+    }
+  );
 
   return (
     <div className="ascii-cam-container">

@@ -171,6 +171,11 @@ export function useAsciiRenderer(
 
     const { cols, rows, canvasWidth, canvasHeight, charWidth, charHeight, fontSize } = gridDimensions;
 
+    // Validate grid dimensions - bail if invalid
+    if (!Number.isFinite(cols) || !Number.isFinite(rows) || cols <= 0 || rows <= 0) {
+      return;
+    }
+
     // Only resize canvas if dimensions changed
     if (canvas.width !== canvasWidth || canvas.height !== canvasHeight) {
       canvas.width = canvasWidth;
