@@ -157,11 +157,7 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
         value: false,
         label: 'Invert'
       }
-    }),
-
-    'Export': folder({
-      exportPNG: button(() => exportToPNG(canvasRef.current))
-    }, { collapsed: true })
+    })
   });
 
   // Separate Font controls so we can rebuild min/max when font changes
@@ -243,6 +239,11 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
     [fontIdLocal]
   );
 
+  // Export controls (below Font)
+  useControls('Export', {
+    exportPNG: button(() => exportToPNG(canvasRef.current))
+  }, { collapsed: true });
+
   // Determine which characters to use
   const characters = settings.preset === 'Custom'
     ? settings.customChars || 'M'
@@ -251,7 +252,7 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
   // Build secondary axes object from settings
   const secondaryAxes = useMemo(() => {
     const axes: Record<string, number> = {};
-    const fontId = String(fontSettings.fontId);
+    const fontId = String((fontSettings as any).fontId);
     const selectedFont = FONTS[fontId as FontId];
 
     if (selectedFont?.secondaryAxes) {
@@ -271,7 +272,7 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
     video,
     isReady,
     {
-      fontId: String(fontSettings?.fontId || DEFAULT_FONT) as FontId,
+      fontId: fontIdLocal, // Use local state directly, not from fontSettings
       secondaryAxes,
       characters,
       randomSeed: Number(settings.randomSeed),

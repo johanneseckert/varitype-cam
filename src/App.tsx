@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Leva } from 'leva';
 import { AsciiCam } from './components/AsciiCam';
 import './App.css';
 
@@ -7,6 +8,8 @@ function App() {
 
   return (
     <div className="app">
+      <Leva hidden={!isCameraActive} />
+
       {!isCameraActive && (
         <>
           <header className="app-header">
