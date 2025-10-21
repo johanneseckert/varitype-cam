@@ -155,7 +155,7 @@ export function useAsciiRenderer(
           const fontStringMid = `normal ${midWeight} ${Math.max(1, Math.round(fontSize))}px '${font.family}'`;
           const fontStringMax = `normal ${maxWeight} ${Math.max(1, Math.round(fontSize))}px '${font.family}'`;
 
-          const results = await Promise.all([
+          await Promise.all([
             (document as any).fonts.load(fontStringMin),
             (document as any).fonts.load(fontStringMid),
             (document as any).fonts.load(fontStringMax)
@@ -323,18 +323,10 @@ export function useAsciiRenderer(
 
             // Build secondary axes variation settings if present
             if (font.secondaryAxes && settings.secondaryAxes && font.secondaryAxes.length > 0) {
-              const secondaryParts: string[] = [];
-              font.secondaryAxes.forEach(axis => {
-                const value = settings.secondaryAxes?.[axis.name] ?? axis.default ?? axis.min;
-                secondaryParts.push(`'${axis.name}' ${value}`);
-              });
-              const secondarySettings = secondaryParts.join(', ');
-
-              // Use font-variation-settings for secondary axes only
+              // Note: Canvas 2D doesn't support font-variation-settings in font string
+              // Secondary axes are currently not applied in Canvas 2D rendering
               // Format: [font-style] [font-weight] [font-size] [font-family]
               const fontString = `normal ${weight} ${fontSize}px '${font.family}'`;
-              // Note: Canvas 2D doesn't support font-variation-settings in font string
-              // We'll set the font and then manually apply variation settings via a workaround
               ctx.font = fontString;
             } else {
               // No secondary axes - just set weight
