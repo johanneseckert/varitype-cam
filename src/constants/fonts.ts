@@ -15,6 +15,14 @@ export interface VariableFontConfig {
   secondaryAxes?: VariableFontAxis[]; // User-controllable axes (optional)
 }
 
+/**
+ * To add a new variable font:
+ * 1. Place the .ttf file in /public/ directory
+ * 2. Add @font-face declaration in src/index.css with format('truetype-variations')
+ * 3. Add font configuration below with proper axis ranges
+ *
+ * Note: Canvas 2D only supports locally hosted variable fonts, not web font services.
+ */
 export const FONTS: Record<string, VariableFontConfig> = {
   'geist-mono': {
     id: 'geist-mono',
@@ -28,34 +36,31 @@ export const FONTS: Record<string, VariableFontConfig> = {
       max: 900
     }
   },
-  'lexia-mono': {
-    id: 'lexia-mono',
-    name: 'Lexia Mono Variable',
-    family: 'lexia-mono-variable',
+  'doto': {
+    id: 'doto',
+    name: 'Doto',
+    family: 'Doto Variable',
     charAspectRatio: 0.6,
     primaryAxis: {
       name: 'wght',
       label: 'Weight',
       min: 100,
       max: 900
-    }
+    },
+    secondaryAxes: [
+      {
+        name: 'ROND',
+        label: 'Roundness',
+        min: 0,
+        max: 100,
+        default: 0
+      }
+    ]
   },
-  'config-variable': {
-    id: 'config-variable',
-    name: 'Config Variable',
-    family: 'config-variable',
-    charAspectRatio: 0.6,
-    primaryAxis: {
-      name: 'wght',
-      label: 'Weight',
-      min: 100,
-      max: 900
-    }
-  },
-  'bd-orange-variable': {
-    id: 'bd-orange-variable',
-    name: 'BD Orange Variable',
-    family: 'bd-orange-variable',
+  'jetbrains-mono': {
+    id: 'jetbrains-mono',
+    name: 'JetBrains Mono',
+    family: 'JetBrains Mono Variable',
     charAspectRatio: 0.6,
     primaryAxis: {
       name: 'wght',
@@ -64,71 +69,114 @@ export const FONTS: Record<string, VariableFontConfig> = {
       max: 800
     }
   },
-  'tourney-variable': {
-    id: 'tourney-variable',
-    name: 'Tourney Variable',
-    family: 'tourney-variable',
-    charAspectRatio: 0.6,
-    primaryAxis: {
-      name: 'wght',
-      label: 'Weight',
-      min: 100,
-      max: 900
-    }
-  },
-  'climate-crisis-variable': {
-    id: 'climate-crisis-variable',
-    name: 'Climate Crisis Variable',
-    family: 'climate-crisis-variable',
-    charAspectRatio: 0.6,
-    primaryAxis: {
-      name: 'YEAR',
-      label: 'Year',
-      min: 1979,
-      max: 2050
-    }
-  },
-  'ds-ddungsang-variable': {
-    id: 'ds-ddungsang-variable',
-    name: 'DS Ddungsang Variable',
-    family: 'ds-ddungsang-variable',
-    charAspectRatio: 0.6,
-    primaryAxis: {
-      name: 'wght',
-      label: 'Weight',
-      min: 400,
-      max: 800
-    }
-  },
-  'luke-variable': {
-    id: 'luke-variable',
-    name: 'Luke Variable',
-    family: 'luke-variable',
-    charAspectRatio: 0.6,
-    primaryAxis: {
-      name: 'FILL',
-      label: 'Fill',
-      min: 100,
-      max: 300
-    }
-  },
-  'aglet-mono-variable': {
-    id: 'aglet-mono-variable',
-    name: 'Aglet Mono Variable',
-    family: 'aglet-mono-variable',
+  'sono': {
+    id: 'sono',
+    name: 'Sono',
+    family: 'Sono Variable',
     charAspectRatio: 0.6,
     primaryAxis: {
       name: 'wght',
       label: 'Weight',
       min: 200,
+      max: 800
+    },
+    secondaryAxes: [
+      {
+        name: 'MONO',
+        label: 'Monospace',
+        min: 0,
+        max: 1,
+        default: 1
+      }
+    ]
+  },
+  'sixtyfour': {
+    id: 'sixtyfour',
+    name: 'Sixtyfour',
+    family: 'Sixtyfour Variable',
+    charAspectRatio: 0.6,
+    primaryAxis: {
+      name: 'BLED',
+      label: 'Bleed',
+      min: 0,
+      max: 100
+    },
+    secondaryAxes: [
+      {
+        name: 'SCAN',
+        label: 'Scanlines',
+        min: -53,
+        max: 100,
+        default: 0
+      }
+    ]
+  },
+  'workbench': {
+    id: 'workbench',
+    name: 'Workbench',
+    family: 'Workbench Variable',
+    charAspectRatio: 0.6,
+    primaryAxis: {
+      name: 'BLED',
+      label: 'Bleed',
+      min: 0,
+      max: 100
+    },
+    secondaryAxes: [
+      {
+        name: 'SCAN',
+        label: 'Scanlines',
+        min: -53,
+        max: 100,
+        default: 0
+      }
+    ]
+  },
+  'bitcount-grid-single': {
+    id: 'bitcount-grid-single',
+    name: 'Bitcount Grid Single',
+    family: 'Bitcount Grid Single',
+    charAspectRatio: 0.6,
+    primaryAxis: {
+      name: 'wght',
+      label: 'Weight',
+      min: 100,
+      max: 900
+    },
+    secondaryAxes: [
+      {
+        name: 'ELSH',
+        label: 'Shape',
+        min: 0,
+        max: 100,
+        default: 0
+      },
+      {
+        name: 'ELXP',
+        label: 'Expansion',
+        min: 0,
+        max: 100,
+        default: 0
+      }
+    ]
+  },
+  'bodoni-moda': {
+    id: 'bodoni-moda',
+    name: 'Bodoni Moda',
+    family: 'Bodoni Moda Variable',
+    charAspectRatio: 0.5,
+    primaryAxis: {
+      name: 'wght',
+      label: 'Weight',
+      min: 400,
       max: 900
     }
   },
-  'vinila-variable': {
-    id: 'vinila-variable',
-    name: 'Vinila Variable',
-    family: 'vinila-variable',
-    charAspectRatio: 0.6,
+  'grenze-gotisch': {
+    id: 'grenze-gotisch',
+    name: 'Grenze Gotisch',
+    family: 'Grenze Gotisch Variable',
+    charAspectRatio: 0.5,
     primaryAxis: {
       name: 'wght',
       label: 'Weight',
@@ -136,64 +184,29 @@ export const FONTS: Record<string, VariableFontConfig> = {
       max: 900
     }
   },
-  'din-condensed-variable': {
-    id: 'din-condensed-variable',
-    name: 'DIN Condensed Variable',
-    family: 'din-condensed-variable',
-    charAspectRatio: 0.5,
+  'linefont': {
+    id: 'linefont',
+    name: 'Linefont',
+    family: 'Linefont Variable',
+    charAspectRatio: 0.6,
     primaryAxis: {
       name: 'wght',
       label: 'Weight',
-      min: 300,
-      max: 600
-    }
-  },
-  'littlebit-dotty-variable': {
-    id: 'littlebit-dotty-variable',
-    name: 'Littlebit Dotty Variable',
-    family: 'littlebit-dotty-variable',
-    charAspectRatio: 0.6,
-    primaryAxis: {
-      name: 'DOTS',
-      label: 'Dot Size',
-      min: 0,
+      min: 4,
       max: 1000
     }
   },
-  'gridlite-pe': {
-    id: 'gridlite-pe',
-    name: 'Gridlite PE Variable',
-    family: 'gridlite-pe-variable',
+  'big-shoulders-stencil': {
+    id: 'big-shoulders-stencil',
+    name: 'Big Shoulders Stencil',
+    family: 'Big Shoulders Stencil Variable',
     charAspectRatio: 0.6,
     primaryAxis: {
       name: 'wght',
       label: 'Weight',
-      min: 1,
+      min: 100,
       max: 900
-    },
-    secondaryAxes: [
-      {
-        name: 'BACK',
-        label: 'Background',
-        min: 1,
-        max: 900,
-        default: 200
-      },
-      {
-        name: 'RECT',
-        label: 'Rectangle',
-        min: 1,
-        max: 900,
-        default: 200
-      },
-      {
-        name: 'ELSH',
-        label: 'Shape',
-        min: 1,
-        max: 4,
-        default: 3
-      }
-    ]
+    }
   }
 };
 

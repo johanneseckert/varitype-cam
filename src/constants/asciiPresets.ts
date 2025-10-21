@@ -5,6 +5,8 @@ export const ASCII_PRESETS = {
   'Bars': '▁▂▃▄▅▆▇█',
   'Alphanumeric': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
   'Binary': '01',
+  'LineFont Special': 'ĀŤĀŤĀŤĀŤĀŤĀŤĀŤŤĀĀŤŤĀĀŤŤĀĀŤŤĀĀŤŤĀĀŤŤŤŤĀĀĀĀŤŤŤŤĀĀĀĀŤŤŤŤĀĀŤŤŤŤĀĀĀĀŤŤŤŤŤŤŤŤĀĀĀĀĀĀĀĀŤŤŤŤŤŤŤŤĀĀĀĀĀĀĀĀĀĀĀŤŤŤŤŤŤŤŤŤŤŤŤŤŤŤŤĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀŤŤŤŤŤŤŤŤŤŤŤŤŤŤŤŤĀĀĀĀĀĀĀĀ',
+  'MAX': 'MAX',
   'Single M': 'M',
   'Single @': '@',
   'Custom': ''

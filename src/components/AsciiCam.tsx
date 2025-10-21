@@ -33,7 +33,7 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
   const settings = useControls({
     'Character Set': folder({
       preset: {
-        value: 'Single M' as PresetName,
+        value: 'MAX' as PresetName,
         options: PRESET_OPTIONS,
         label: 'Preset'
       },
@@ -196,29 +196,45 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
           step: 1,
           label: `Max ${primary.label} (bright)`
         },
-        BACK: {
-          value: 200,
-          min: 1,
-          max: 900,
-          step: 10,
-          label: 'Background',
-          render: () => fontIdLocal === 'gridlite-pe'
+        ROND: {
+          value: 0,
+          min: 0,
+          max: 100,
+          step: 5,
+          label: 'Roundness',
+          render: () => fontIdLocal === 'doto'
         },
-        RECT: {
-          value: 200,
-          min: 1,
-          max: 900,
-          step: 10,
-          label: 'Rectangle',
-          render: () => fontIdLocal === 'gridlite-pe'
+        MONO: {
+          value: 1,
+          min: 0,
+          max: 1,
+          step: 0.1,
+          label: 'Monospace',
+          render: () => fontIdLocal === 'sono'
+        },
+        SCAN: {
+          value: 0,
+          min: -53,
+          max: 100,
+          step: 1,
+          label: 'Scanlines',
+          render: () => fontIdLocal === 'sixtyfour' || fontIdLocal === 'workbench'
         },
         ELSH: {
-          value: 3,
-          min: 1,
-          max: 4,
-          step: 1,
+          value: 0,
+          min: 0,
+          max: 100,
+          step: 5,
           label: 'Shape',
-          render: () => fontIdLocal === 'gridlite-pe'
+          render: () => fontIdLocal === 'bitcount-grid-single'
+        },
+        ELXP: {
+          value: 0,
+          min: 0,
+          max: 100,
+          step: 5,
+          label: 'Expansion',
+          render: () => fontIdLocal === 'bitcount-grid-single'
         },
         lineHeight: {
           value: 1.0,
@@ -280,13 +296,6 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
   const maxAxisValue = isFontSettingsSynced && fontSettings?.maxAxis
     ? Number(fontSettings.maxAxis)
     : currentFont.primaryAxis.max;
-
-  // Debug logging
-  console.log('[AsciiCam] fontIdLocal:', fontIdLocal);
-  console.log('[AsciiCam] settingsFontId:', settingsFontId);
-  console.log('[AsciiCam] isSynced:', isFontSettingsSynced);
-  console.log('[AsciiCam] currentFont.primaryAxis:', currentFont.primaryAxis.name, currentFont.primaryAxis.min, '-', currentFont.primaryAxis.max);
-  console.log('[AsciiCam] passing minAxis:', minAxisValue, 'maxAxis:', maxAxisValue);
 
   // Use the renderer hook
   useAsciiRenderer(

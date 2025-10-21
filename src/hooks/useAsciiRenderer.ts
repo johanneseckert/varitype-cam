@@ -161,20 +161,7 @@ export function useAsciiRenderer(
             (document as any).fonts.load(fontStringMax)
           ]);
 
-          console.log('[Font Loading] Load results:', results.map((r: any) => r?.length || 0));
           console.log('[Font Loading] Successfully loaded:', font.family);
-
-          // Check if font is actually available
-          const allFonts = Array.from((document as any).fonts);
-          console.log('[Font Loading] Total fonts available:', allFonts.length);
-          console.log('[Font Loading] All font families:', [...new Set(allFonts.map((f: any) => f.family))]);
-
-          const fontFaces = allFonts.filter((f: any) =>
-            f.family === font.family ||
-            f.family.toLowerCase().includes(font.family.toLowerCase()) ||
-            font.family.toLowerCase().includes(f.family.toLowerCase())
-          );
-          console.log('[Font Loading] Matching font faces for', font.family, ':', fontFaces.map((f: any) => ({ family: f.family, weight: f.weight, stretch: f.stretch, style: f.style })));
         }
       } catch (error) {
         console.error('[Font Loading] Failed to load font:', font.family, error);
@@ -287,10 +274,6 @@ export function useAsciiRenderer(
       // Get font configuration once per frame (not per character!)
       const font = FONTS[settings.fontId] || FONTS[DEFAULT_FONT];
 
-      // Log font info once per frame
-      console.log('[Render] Using font:', font.family, 'fontId:', settings.fontId);
-      console.log('[Render] Primary axis:', font.primaryAxis.name, 'minAxis:', minAxis, 'maxAxis:', maxAxis);
-
       // Render each character
       for (let row = 0; row < rows; row++) {
         for (let col = 0; col < cols; col++) {
@@ -358,19 +341,6 @@ export function useAsciiRenderer(
               // Format: [font-style] [font-weight] [font-size] [font-family]
               const fontString = `normal ${weight} ${fontSize}px '${font.family}'`;
               ctx.font = fontString;
-            }
-
-            // Log for first character of each frame (debugging)
-            if (row === 0 && col === 0) {
-              console.log('[Render] primaryAxisValue:', primaryAxisValue);
-              console.log('[Render] weight value:', weight);
-              console.log('[Render] font.family:', font.family);
-              console.log('[Render] ctx.font (after setting):', ctx.font);
-
-              // Check if font is actually available
-              const testString = `normal normal 400 16px '${font.family}'`;
-              const testMetrics = ctx.measureText('M');
-              console.log('[Render] Test metrics width:', testMetrics.width);
             }
           } else {
             // Primary axis is NOT weight - need to use font-variation-settings

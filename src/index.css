@@ -1,13 +1,101 @@
 /* Load Geist Mono Variable Font */
 @font-face {
   font-family: 'Geist Mono Variable';
-  src: url('/GeistMono.ttf') format('truetype-variations');
+  src: url('/GeistMono-VariableFont_wght.ttf') format('truetype-variations');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
 
-/* All other fonts are provided by Adobe Fonts kit in index.html. */
+/* Doto Variable Font */
+@font-face {
+  font-family: 'Doto Variable';
+  src: url('/Doto-VariableFont_ROND,wght.ttf') format('truetype-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* JetBrains Mono Variable Font */
+@font-face {
+  font-family: 'JetBrains Mono Variable';
+  src: url('/JetBrainsMono-VariableFont_wght.ttf') format('truetype-variations');
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Sono Variable Font */
+@font-face {
+  font-family: 'Sono Variable';
+  src: url('/Sono-VariableFont_MONO,wght.ttf') format('truetype-variations');
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Sixtyfour Variable Font */
+@font-face {
+  font-family: 'Sixtyfour Variable';
+  src: url('/Sixtyfour-Regular-VariableFont_BLED,SCAN.ttf') format('truetype-variations');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Workbench Variable Font */
+@font-face {
+  font-family: 'Workbench Variable';
+  src: url('/Workbench-Regular-VariableFont_BLED,SCAN.ttf') format('truetype-variations');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Bitcount Grid Single Variable Font */
+@font-face {
+  font-family: 'Bitcount Grid Single';
+  src: url('/BitcountGridSingle-VariableFont_CRSV,ELSH,ELXP,slnt,wght.ttf') format('truetype-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Bodoni Moda Variable Font */
+@font-face {
+  font-family: 'Bodoni Moda Variable';
+  src: url('/BodoniModa-VariableFont_opsz,wght.ttf') format('truetype-variations');
+  font-weight: 400 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Grenze Gotisch Variable Font */
+@font-face {
+  font-family: 'Grenze Gotisch Variable';
+  src: url('/GrenzeGotisch-VariableFont_wght.ttf') format('truetype-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Linefont Variable Font */
+@font-face {
+  font-family: 'Linefont Variable';
+  src: url('/Linefont-VariableFont_wdth,wght.ttf') format('truetype-variations');
+  font-weight: 4 1000;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Big Shoulders Stencil Variable Font */
+@font-face {
+  font-family: 'Big Shoulders Stencil Variable';
+  src: url('/BigShouldersStencil-VariableFont_opsz,wght.ttf') format('truetype-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 /* Dark mode base styles */
 * {
