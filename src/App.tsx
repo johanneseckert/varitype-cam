@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Leva } from 'leva';
 import { AsciiCam } from './components/AsciiCam';
+import { WaveAnimation } from './components/WaveAnimation';
 import './App.css';
 
 function App() {
@@ -8,6 +9,7 @@ function App() {
 
   return (
     <div className="app">
+      <WaveAnimation isActive={!isCameraActive} />
       <Leva hidden={!isCameraActive} />
 
       {!isCameraActive && (
