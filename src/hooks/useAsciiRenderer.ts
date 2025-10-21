@@ -139,15 +139,42 @@ export function useAsciiRenderer(
       try {
         // Attempt to load this font-family at the current size
         if (document && (document as any).fonts && typeof (document as any).fonts.load === 'function') {
-          // Use a valid font weight (400) regardless of primary axis
-          // We'll use font-variation-settings in the render loop for all axes
-          const weight = 400;
-          const fontString = `${weight} ${Math.max(1, Math.round(fontSize))}px '${font.family}'`;
-
-          console.log('[Font Loading] Attempting to load:', fontString);
-          await (document as any).fonts.load(fontString);
+          // First wait for all fonts to be ready (Adobe Fonts/Typekit)
           await (document as any).fonts.ready;
+
+          // For variable fonts, load at min, mid, and max weights to ensure full range is available
+          const minWeight = font.primaryAxis.name === 'wght' ? font.primaryAxis.min : 400;
+          const maxWeight = font.primaryAxis.name === 'wght' ? font.primaryAxis.max : 400;
+          const midWeight = font.primaryAxis.name === 'wght' ? Math.round((minWeight + maxWeight) / 2) : 400;
+
+          console.log('[Font Loading] Attempting to load:', font.family, 'at weights:', minWeight, midWeight, maxWeight);
+
+          // Load at multiple weights to ensure variable font range is loaded
+          // Format: [font-style] [font-weight] [font-size] [font-family]
+          const fontStringMin = `normal ${minWeight} ${Math.max(1, Math.round(fontSize))}px '${font.family}'`;
+          const fontStringMid = `normal ${midWeight} ${Math.max(1, Math.round(fontSize))}px '${font.family}'`;
+          const fontStringMax = `normal ${maxWeight} ${Math.max(1, Math.round(fontSize))}px '${font.family}'`;
+
+          const results = await Promise.all([
+            (document as any).fonts.load(fontStringMin),
+            (document as any).fonts.load(fontStringMid),
+            (document as any).fonts.load(fontStringMax)
+          ]);
+
+          console.log('[Font Loading] Load results:', results.map((r: any) => r?.length || 0));
           console.log('[Font Loading] Successfully loaded:', font.family);
+
+          // Check if font is actually available
+          const allFonts = Array.from((document as any).fonts);
+          console.log('[Font Loading] Total fonts available:', allFonts.length);
+          console.log('[Font Loading] All font families:', [...new Set(allFonts.map((f: any) => f.family))]);
+
+          const fontFaces = allFonts.filter((f: any) =>
+            f.family === font.family ||
+            f.family.toLowerCase().includes(font.family.toLowerCase()) ||
+            font.family.toLowerCase().includes(f.family.toLowerCase())
+          );
+          console.log('[Font Loading] Matching font faces for', font.family, ':', fontFaces.map((f: any) => ({ family: f.family, weight: f.weight, stretch: f.stretch, style: f.style })));
         }
       } catch (error) {
         console.error('[Font Loading] Failed to load font:', font.family, error);
@@ -262,14 +289,7 @@ export function useAsciiRenderer(
 
       // Log font info once per frame
       console.log('[Render] Using font:', font.family, 'fontId:', settings.fontId);
-
-      // Set base font once per frame (always use weight 400, variations handled separately)
-      const fontString = `normal normal 400 ${fontSize}px '${font.family}'`;
-      ctx.font = fontString;
-
-      // Clear any previous font variation settings to avoid conflicts when switching fonts
-      // @ts-ignore - fontVariationSettings is not in TS types but works in modern browsers
-      ctx.fontVariationSettings = 'normal';
+      console.log('[Render] Primary axis:', font.primaryAxis.name, 'minAxis:', minAxis, 'maxAxis:', maxAxis);
 
       // Render each character
       for (let row = 0; row < rows; row++) {
@@ -277,7 +297,24 @@ export function useAsciiRenderer(
           // Get pixel from pre-sampled image data
           const pixel = getPixelFromImageData(imageData, col, row, cols);
 
-          // Apply filters in order: gamma -> brightness -> contrast -> invert
+          // Select character based on mapping mode (using ORIGINAL pixel data)
+          let char: string;
+          if (!useMultipleChars) {
+            char = singleChar;
+          } else if (isHueMode) {
+            // Hue mode: map hue from video to character
+            char = getCharByHue(gradientChars, pixel.hue);
+          } else if (isGradientMode) {
+            // Gradient mode: map ORIGINAL luminance to character
+            char = getCharByLuminance(gradientChars, pixel.luminance);
+          } else {
+            // Random mode: use pre-generated lookup
+            const position = row * cols + col;
+            char = charLookup ? charLookup[position] : singleChar;
+          }
+
+          // Apply filters to luminance for font weight (after character selection)
+          // This allows character and weight to be independently controlled
           let luminance = pixel.luminance;
           luminance = applyGamma(luminance, gamma);
           luminance = applyBrightness(luminance, brightness);
@@ -287,63 +324,80 @@ export function useAsciiRenderer(
             luminance = 255 - luminance;
           }
 
-          // Map to primary axis value (luminance-driven)
+          // Map FILTERED luminance to primary axis value (weight, etc.)
           const primaryAxisValue = mapToFontAxis(luminance, minAxis, maxAxis);
 
-          // Select character based on mapping mode
-          let char: string;
-          if (!useMultipleChars) {
-            char = singleChar;
-          } else if (isHueMode) {
-            // Hue mode: map hue from video to character
-            char = getCharByHue(gradientChars, pixel.hue);
-          } else if (isGradientMode) {
-            // Gradient mode: map luminance to character
-            char = getCharByLuminance(gradientChars, luminance);
+          // Build font string with variation settings
+          // For the primary axis (if it's 'wght'), use it as the font weight
+          // For other axes, we need to use font-variation-settings in the font string
+
+          // Force context to recognize font change by saving/restoring state
+          ctx.save();
+
+          if (font.primaryAxis.name === 'wght') {
+            // Primary axis is weight - use it directly in font string
+            const weight = primaryAxisValue;
+
+            // Build secondary axes variation settings if present
+            if (font.secondaryAxes && settings.secondaryAxes && font.secondaryAxes.length > 0) {
+              const secondaryParts: string[] = [];
+              font.secondaryAxes.forEach(axis => {
+                const value = settings.secondaryAxes?.[axis.name] ?? axis.default ?? axis.min;
+                secondaryParts.push(`'${axis.name}' ${value}`);
+              });
+              const secondarySettings = secondaryParts.join(', ');
+
+              // Use font-variation-settings for secondary axes only
+              // Format: [font-style] [font-weight] [font-size] [font-family]
+              const fontString = `normal ${weight} ${fontSize}px '${font.family}'`;
+              // Note: Canvas 2D doesn't support font-variation-settings in font string
+              // We'll set the font and then manually apply variation settings via a workaround
+              ctx.font = fontString;
+            } else {
+              // No secondary axes - just set weight
+              // Format: [font-style] [font-weight] [font-size] [font-family]
+              const fontString = `normal ${weight} ${fontSize}px '${font.family}'`;
+              ctx.font = fontString;
+            }
+
+            // Log for first character of each frame (debugging)
+            if (row === 0 && col === 0) {
+              console.log('[Render] primaryAxisValue:', primaryAxisValue);
+              console.log('[Render] weight value:', weight);
+              console.log('[Render] font.family:', font.family);
+              console.log('[Render] ctx.font (after setting):', ctx.font);
+
+              // Check if font is actually available
+              const testString = `normal normal 400 16px '${font.family}'`;
+              const testMetrics = ctx.measureText('M');
+              console.log('[Render] Test metrics width:', testMetrics.width);
+            }
           } else {
-            // Random mode: use pre-generated lookup
-            const position = row * cols + col;
-            char = charLookup ? charLookup[position] : singleChar;
+            // Primary axis is NOT weight - need to use font-variation-settings
+            // Canvas doesn't support this directly, so we'll need a workaround
+            // For now, use default weight and log a warning
+            if (row === 0 && col === 0) {
+              console.warn(`[Render] Canvas 2D doesn't fully support variable font axis '${font.primaryAxis.name}' - using fallback`);
+            }
+            // Format: [font-style] [font-weight] [font-size] [font-family]
+            const fontString = `normal 400 ${fontSize}px '${font.family}'`;
+            ctx.font = fontString;
           }
 
-          // Set color
+          // Set color (after save, so it applies to this character)
           if (isColored) {
             ctx.fillStyle = `rgb(${pixel.r},${pixel.g},${pixel.b})`;
           } else {
             ctx.fillStyle = foregroundColor;
           }
 
-          // Build font-variation-settings string for all axes
-          const fontVariationParts: string[] = [];
-
-          // Add primary axis (luminance-driven)
-          fontVariationParts.push(`'${font.primaryAxis.name}' ${primaryAxisValue}`);
-
-          // Add secondary axes (user-controlled) if present
-          if (font.secondaryAxes && settings.secondaryAxes) {
-            font.secondaryAxes.forEach(axis => {
-              const value = settings.secondaryAxes?.[axis.name] ?? axis.default ?? axis.min;
-              fontVariationParts.push(`'${axis.name}' ${value}`);
-            });
-          }
-
-          const fontVariationSettings = fontVariationParts.join(', ');
-
-          // Log variation settings for first character of each frame (debugging)
-          if (row === 0 && col === 0) {
-            console.log('[Render] fontVariationSettings:', fontVariationSettings);
-            console.log('[Render] primaryAxisValue:', primaryAxisValue);
-          }
-
-          // Apply variation axes for this character via fontVariationSettings
-          // The base font (family + size) was set once at the start of the frame
-          // @ts-ignore - fontVariationSettings is not in TS types but works in modern browsers
-          ctx.fontVariationSettings = fontVariationSettings;
-
           // Draw character
           const x = col * charWidth + charWidth / 2;
           const y = row * charHeight + charHeight / 2;
           ctx.fillText(char, x, y);
+
+          // Restore context state (pops font setting and fillStyle)
+          ctx.restore();
         }
       }
 

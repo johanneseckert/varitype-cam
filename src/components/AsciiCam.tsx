@@ -269,6 +269,25 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
   // Get current font to ensure min/max are always in sync
   const currentFont = FONTS[fontIdLocal] || FONTS[DEFAULT_FONT];
 
+  // Check if fontSettings has been updated to match the current font
+  // If not, use the font's default range to prevent mismatched axis values
+  const settingsFontId = String((fontSettings as any)?.fontId || DEFAULT_FONT) as FontId;
+  const isFontSettingsSynced = settingsFontId === fontIdLocal;
+
+  const minAxisValue = isFontSettingsSynced && fontSettings?.minAxis
+    ? Number(fontSettings.minAxis)
+    : currentFont.primaryAxis.min;
+  const maxAxisValue = isFontSettingsSynced && fontSettings?.maxAxis
+    ? Number(fontSettings.maxAxis)
+    : currentFont.primaryAxis.max;
+
+  // Debug logging
+  console.log('[AsciiCam] fontIdLocal:', fontIdLocal);
+  console.log('[AsciiCam] settingsFontId:', settingsFontId);
+  console.log('[AsciiCam] isSynced:', isFontSettingsSynced);
+  console.log('[AsciiCam] currentFont.primaryAxis:', currentFont.primaryAxis.name, currentFont.primaryAxis.min, '-', currentFont.primaryAxis.max);
+  console.log('[AsciiCam] passing minAxis:', minAxisValue, 'maxAxis:', maxAxisValue);
+
   // Use the renderer hook
   useAsciiRenderer(
     canvasRef,
@@ -291,9 +310,9 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
       contrast: Number(settings.contrast),
       gamma: Number(settings.gamma),
       invert: Boolean(settings.invert),
-      // Use fontSettings values if available, otherwise fall back to current font's range
-      minAxis: Number(fontSettings?.minAxis) || currentFont.primaryAxis.min,
-      maxAxis: Number(fontSettings?.maxAxis) || currentFont.primaryAxis.max,
+      // Use synchronized values or fall back to current font's default range
+      minAxis: minAxisValue,
+      maxAxis: maxAxisValue,
       lineHeight: Number(fontSettings?.lineHeight) || 1.0,
       letterSpacing: Number(fontSettings?.letterSpacing) || 1.0
     }
