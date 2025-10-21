@@ -1,75 +1,83 @@
-# Variable ASCII Cam — React + TypeScript + Vite
+# Variable ASCII Cam
 
-Transforms a live webcam feed into real‑time ASCII art using Canvas 2D and a self‑hosted variable monospace font (Geist Mono). Includes controls for density, palette, brightness/contrast/gamma, invert, and `wght`.
+A real-time webcam to ASCII art converter with a twist: instead of mapping ASCII characters to luminance values, it uses a **variable font's weight axis** (100-900) to represent brightness.
 
-## Quick start
+## Features
+
+- **Variable Font Weight Mapping**: Uses Geist Mono's font-weight axis (100-900) to map luminance values
+- **Real-time Performance**: Smooth 30-60 FPS rendering with optimized canvas operations
+- **Multiple Character Presets**:
+  - Blocks: `█▓▒░`
+  - Classic ASCII: ` .:-=+*#%@`
+  - Dots: `·⋅•●○`
+  - Bars: `▁▂▃▄▅▆▇█`
+  - Alphanumeric, Binary, Singles, and Custom
+- **Extensive Controls**:
+  - Resolution slider (20-200 characters)
+  - Font size adjustment
+  - Aspect ratio selection (16:9, 4:3, 1:1)
+  - Weight mapping range customization
+  - Color modes (monochrome/colored)
+  - Video filters (brightness, contrast, invert)
+  - Seeded randomization for multi-character sets
+- **PNG Export**: Export the current canvas as a PNG image
+- **Modern Dark UI**: Sleek dark mode design with moody gradient shadows
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js (v16 or higher)
+- A modern web browser with webcam support
+
+### Installation
 
 ```bash
-npm i
+npm install
+```
+
+### Development
+
+```bash
 npm run dev
 ```
 
-Open the local URL and allow camera access. If your browser requires HTTPS for camera, see Local HTTPS below.
+Open your browser and allow webcam access when prompted.
 
-## Features (P1)
-
-- Live webcam → ASCII at ~160×90 default grid
-- Palettes: Classic, Blocks, Minimal, Alpha, Bars
-- Adjustable: columns (density), brightness, contrast, gamma, invert
-- Variable font axis: `wght` 100–800
-- Snapshot to PNG, copy ASCII plaintext
-
-## Local HTTPS
-
-Some browsers (notably Safari) require HTTPS for camera.
-
-1) Install mkcert and create a local cert:
+### Build
 
 ```bash
-brew install mkcert nss # macOS (nss for Firefox trust)
-mkcert -install
-mkcert localhost
+npm run build
 ```
 
-This produces `localhost-key.pem` and `localhost.pem` in your project directory.
+The built files will be in the `dist` directory.
 
-2) Run Vite with HTTPS:
+## How It Works
 
-Create `vite.config.ts` override or run with flags, e.g.
+1. **Video Capture**: Captures webcam feed using `getUserMedia()`
+2. **Pixel Sampling**: Samples pixels at grid positions based on resolution
+3. **Luminance Calculation**: Converts RGB values to luminance (0-255)
+4. **Filter Application**: Applies brightness, contrast, and invert filters
+5. **Weight Mapping**: Maps luminance to font-weight (configurable range)
+6. **Canvas Rendering**: Draws characters with varying font weights
 
-```ts
-// vite.config.ts
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import fs from 'node:fs'
+## Technologies
 
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    https: {
-      key: fs.readFileSync('localhost-key.pem'),
-      cert: fs.readFileSync('localhost.pem'),
-    },
-  },
-})
-```
+- React 19
+- TypeScript
+- Vite
+- Leva (UI controls)
+- HTML5 Canvas API
+- WebRTC (getUserMedia)
+- Geist Mono Variable Font
 
-Alternatively, use a reverse proxy/dev cert tool of your choice.
+## Future Enhancements
 
-## Fonts
+- Vector (SVG) export
+- Video recording/export
+- Additional aspect ratios
+- Performance optimizations for higher resolutions
 
-- Geist Mono variable TTF is bundled in `public/GeistMono-VariableFont_wght.ttf` and loaded via `@font-face` in `src/index.css` as `GeistMonoVar`.
-- The app renders with `font-variation-settings: "wght" <value>`; slider range 100–800.
-- No external font network requests.
+## License
 
-## Scripts
-
-- `npm run dev` — start dev server
-- `npm run build` — typecheck and bundle
-- `npm run preview` — preview production build
-- `npm run lint` — ESLint
-
-## Notes
-
-- Performance varies by hardware; reduce columns or lower contrast/gamma if FPS drops.
-- iOS/Safari: use HTTPS; if permissions fail, try a different browser.
+MIT
