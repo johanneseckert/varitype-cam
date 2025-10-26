@@ -2,9 +2,11 @@ import { useRef, useEffect, useMemo, useState } from 'react';
 import { useControls, button, folder } from 'leva';
 import { useWebcam } from '../hooks/useWebcam';
 import { useAsciiRenderer } from '../hooks/useAsciiRenderer';
-import { useImageExport } from '../hooks/useImageExport';
+import { useImageExport, type ExportSettings } from '../hooks/useImageExport';
+import { useImageOverlay } from '../hooks/useImageOverlay';
 import { ASCII_PRESETS, PRESET_OPTIONS, type PresetName } from '../constants/asciiPresets';
 import { FONTS, DEFAULT_FONT, type FontId } from '../constants/fonts';
+import { getRandomChar, shuffleString } from '../utils/seededRandom';
 
 interface AsciiCamProps {
   onCameraStart?: () => void;
@@ -13,7 +15,8 @@ interface AsciiCamProps {
 export function AsciiCam({ onCameraStart }: AsciiCamProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { video, isReady, error, isLoading, hasStarted, startWebcam } = useWebcam();
-  const { exportToPNG } = useImageExport();
+  const { exportToPNG, exportToPNG4x } = useImageExport();
+  const { overlay, loadOverlay, removeOverlay } = useImageOverlay();
 
   // Notify parent when camera starts
   useEffect(() => {
@@ -42,6 +45,17 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
         label: 'Custom Characters',
         render: (get) => get('Character Set.preset') === 'Custom'
       },
+      randomize: {
+        value: true,
+        label: 'Randomize',
+        render: (get) => {
+          const preset = get('Character Set.preset') as PresetName;
+          const chars = preset === 'Custom'
+            ? get('Character Set.customChars')
+            : ASCII_PRESETS[preset];
+          return chars.length > 1;
+        }
+      },
       mappingMode: {
         value: 'random' as 'random' | 'gradient' | 'hue',
         options: {
@@ -55,7 +69,8 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
           const chars = preset === 'Custom'
             ? get('Character Set.customChars')
             : ASCII_PRESETS[preset];
-          return chars.length > 1;
+          const randomize = get('Character Set.randomize');
+          return chars.length > 1 && randomize;
         }
       },
       gradientSeed: {
@@ -83,7 +98,8 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
           const chars = preset === 'Custom'
             ? get('Character Set.customChars')
             : ASCII_PRESETS[preset];
-          return chars.length > 1 && get('Character Set.mappingMode') === 'random';
+          const randomize = get('Character Set.randomize');
+          return chars.length > 1 && get('Character Set.mappingMode') === 'random' && randomize;
         }
       },
       hueSeed: {
@@ -104,8 +120,8 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
 
     'Appearance': folder({
       aspectRatio: {
-        value: 'Auto',
-        options: ['Auto', '16:9', '4:3', '1:1'],
+        value: '16:9',
+        options: ['16:9', '4:3', '1:1', 'Tarot'],
         label: 'Aspect Ratio'
       },
       resolution: {
@@ -157,6 +173,14 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
         value: false,
         label: 'Invert'
       }
+    }),
+
+    'Overlay': folder({
+      loadImage: button(() => loadOverlay(), { label: 'Load Image Overlay' }),
+      removeImage: button(() => removeOverlay(), {
+        label: 'Remove Overlay',
+        disabled: !overlay
+      })
     })
   });
 
@@ -255,11 +279,6 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
     [fontIdLocal]
   );
 
-  // Export controls (below Font)
-  useControls('Export', {
-    exportPNG: button(() => exportToPNG(canvasRef.current))
-  }, { collapsed: true });
-
   // Determine which characters to use
   const characters = settings.preset === 'Custom'
     ? settings.customChars || 'M'
@@ -297,6 +316,138 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
     ? Number(fontSettings.maxAxis)
     : currentFont.primaryAxis.max;
 
+  // Calculate grid dimensions (needed for export)
+  const gridDimensions = useMemo(() => {
+    const font = FONTS[fontIdLocal] || FONTS[DEFAULT_FONT];
+    const charAspectRatio = font.charAspectRatio;
+    const targetCanvasWidth = Math.min(window.innerWidth * 0.8, 1600);
+
+    let targetAspectRatio: number;
+    switch (settings.aspectRatio) {
+      case '4:3':
+        targetAspectRatio = 4 / 3;
+        break;
+      case '1:1':
+        targetAspectRatio = 1;
+        break;
+      case 'Tarot':
+        targetAspectRatio = 536 / 765;
+        break;
+      case '16:9':
+        targetAspectRatio = 16 / 9;
+        break;
+      default:
+        targetAspectRatio = 16 / 9;
+        break;
+    }
+
+    const baseCols = settings.resolution;
+    const fontSize = targetCanvasWidth / (baseCols * charAspectRatio);
+    const baseFontSize = fontSize;
+    const letterSpacingValue = Number(fontSettings?.letterSpacing) || 1.0;
+    const lineHeightValue = Number(fontSettings?.lineHeight) || 1.0;
+    const charWidth = baseFontSize * charAspectRatio * letterSpacingValue;
+    const canvasWidth = targetCanvasWidth;
+    const cols = Math.floor(canvasWidth / charWidth);
+    const canvasHeight = canvasWidth / targetAspectRatio;
+    const rowHeight = baseFontSize * lineHeightValue;
+    const rows = Math.floor(canvasHeight / rowHeight);
+
+    return {
+      cols,
+      rows,
+      canvasWidth,
+      canvasHeight,
+      charWidth,
+      charHeight: rowHeight,
+      fontSize: baseFontSize
+    };
+  }, [settings.resolution, settings.aspectRatio, fontSettings?.lineHeight, fontSettings?.letterSpacing, fontIdLocal, video]);
+
+  // Pre-generate character lookup table - needed for export
+  const charLookup = useMemo(() => {
+    if (characters.length <= 1) return null;
+
+    // If randomize is off, don't need lookup - we'll use sequential looping
+    if (!settings.randomize) return null;
+
+    // Only for random mode when randomize is on
+    if (settings.mappingMode !== 'random') return null;
+
+    const { cols, rows } = gridDimensions;
+    const total = cols * rows;
+    const chars = new Array(total);
+
+    for (let i = 0; i < total; i++) {
+      chars[i] = getRandomChar(characters, settings.randomSeed, i);
+    }
+
+    return chars;
+  }, [characters, settings.randomSeed, settings.randomize, settings.mappingMode, gridDimensions]);
+
+  // Shuffled character string for gradient modes - needed for export
+  const gradientChars = useMemo(() => {
+    if (characters.length <= 1) return characters;
+
+    // If randomize is off, use original order
+    if (!settings.randomize) return characters;
+
+    // Shuffle for gradient/hue modes when randomize is on
+    if (settings.mappingMode !== 'gradient' && settings.mappingMode !== 'hue') {
+      return characters;
+    }
+    const seed = settings.mappingMode === 'hue' ? settings.hueSeed : settings.gradientSeed;
+    return shuffleString(characters, seed);
+  }, [characters, settings.gradientSeed, settings.hueSeed, settings.randomize, settings.mappingMode]);
+
+  // Prepare export settings for 4x export
+  const exportSettings: ExportSettings = useMemo(() => ({
+    video,
+    overlay,
+    fontId: fontIdLocal,
+    fontSize: gridDimensions.fontSize,
+    lineHeight: Number(fontSettings?.lineHeight) || 1.0,
+    letterSpacing: Number(fontSettings?.letterSpacing) || 1.0,
+    characters,
+    charLookup,
+    gradientChars,
+    randomize: Boolean(settings.randomize),
+    mappingMode: settings.mappingMode as 'random' | 'gradient' | 'hue',
+    cols: gridDimensions.cols,
+    rows: gridDimensions.rows,
+    canvasWidth: gridDimensions.canvasWidth,
+    canvasHeight: gridDimensions.canvasHeight,
+    charWidth: gridDimensions.charWidth,
+    charHeight: gridDimensions.charHeight,
+    colorMode: settings.colorMode as 'monochrome' | 'colored',
+    foregroundColor: String(settings.foregroundColor),
+    backgroundColor: String(settings.backgroundColor),
+    brightness: Number(settings.brightness),
+    contrast: Number(settings.contrast),
+    gamma: Number(settings.gamma),
+    invert: Boolean(settings.invert),
+    minAxis: minAxisValue,
+    maxAxis: maxAxisValue
+  }), [
+    video,
+    overlay,
+    fontIdLocal,
+    gridDimensions,
+    fontSettings,
+    characters,
+    charLookup,
+    gradientChars,
+    settings,
+    minAxisValue,
+    maxAxisValue
+  ]);
+
+  // Export controls (below Font)
+  useControls('Export', {
+    'Export PNG (1x)': button(() => exportToPNG(canvasRef.current)),
+    'Export PNG (4x)': button(() => exportToPNG4x(exportSettings))
+  }, { collapsed: true });
+
   // Use the renderer hook
   useAsciiRenderer(
     canvasRef,
@@ -306,6 +457,7 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
       fontId: fontIdLocal, // Use local state directly, not from fontSettings
       secondaryAxes,
       characters,
+      randomize: Boolean(settings.randomize),
       randomSeed: Number(settings.randomSeed),
       mappingMode: settings.mappingMode as 'random' | 'gradient' | 'hue',
       gradientSeed: Number(settings.gradientSeed),
@@ -323,7 +475,8 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
       minAxis: minAxisValue,
       maxAxis: maxAxisValue,
       lineHeight: Number(fontSettings?.lineHeight) || 1.0,
-      letterSpacing: Number(fontSettings?.letterSpacing) || 1.0
+      letterSpacing: Number(fontSettings?.letterSpacing) || 1.0,
+      overlay: overlay // Pass overlay image to renderer
     }
   );
 

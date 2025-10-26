@@ -53,6 +53,7 @@ export function mapToFontAxis(
 /**
  * Sample entire video frame at once for better performance
  * Uses "cover" fitting - video is never stretched, but may be cropped
+ * Optionally composites an overlay image above the video before sampling
  */
 export function sampleVideoFrame(
   videoElement: HTMLVideoElement,
@@ -60,7 +61,8 @@ export function sampleVideoFrame(
   tempCtx: CanvasRenderingContext2D,
   cols: number,
   rows: number,
-  canvasAspectRatio: number
+  canvasAspectRatio: number,
+  overlayImage?: HTMLImageElement | null
 ): ImageData {
   // Resize temp canvas to match grid resolution (much smaller!)
   if (tempCanvas.width !== cols || tempCanvas.height !== rows) {
@@ -99,7 +101,16 @@ export function sampleVideoFrame(
     0, 0, cols, rows                               // destination rectangle
   );
 
-  // Get all pixel data at once
+  // If overlay is provided, composite it on top (stretched to fill)
+  if (overlayImage) {
+    tempCtx.drawImage(
+      overlayImage,
+      0, 0, overlayImage.width, overlayImage.height,  // source (entire image)
+      0, 0, cols, rows                                  // destination (stretched to canvas)
+    );
+  }
+
+  // Get all pixel data at once (includes composited overlay if present)
   return tempCtx.getImageData(0, 0, cols, rows);
 }
 

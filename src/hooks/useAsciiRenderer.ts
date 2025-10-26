@@ -17,6 +17,7 @@ export interface RenderSettings {
 
   // Character settings
   characters: string;
+  randomize: boolean;
   randomSeed: number;
   mappingMode: 'random' | 'gradient' | 'hue';
   gradientSeed: number;
@@ -40,6 +41,9 @@ export interface RenderSettings {
   maxAxis: number;
   lineHeight: number;
   letterSpacing: number;
+
+  // Overlay
+  overlay?: HTMLImageElement | null;
 }
 
 export function useAsciiRenderer(
@@ -67,26 +71,23 @@ export function useAsciiRenderer(
     // Get target canvas aspect ratio
     let targetAspectRatio: number;
 
-    if (settings.aspectRatio === 'Auto' && video) {
-      // Use webcam's native aspect ratio
-      const videoAspect = video.videoWidth / video.videoHeight;
-      targetAspectRatio = videoAspect;
-    } else {
-      switch (settings.aspectRatio) {
-        case '4:3':
-          targetAspectRatio = 4 / 3;
-          break;
-        case '1:1':
-          targetAspectRatio = 1;
-          break;
-        case '16:9':
-          targetAspectRatio = 16 / 9;
-          break;
-        default:
-          // Fallback to 16:9
-          targetAspectRatio = 16 / 9;
-          break;
-      }
+    switch (settings.aspectRatio) {
+      case '4:3':
+        targetAspectRatio = 4 / 3;
+        break;
+      case '1:1':
+        targetAspectRatio = 1;
+        break;
+      case 'Tarot':
+        targetAspectRatio = 536 / 765;
+        break;
+      case '16:9':
+        targetAspectRatio = 16 / 9;
+        break;
+      default:
+        // Fallback to 16:9
+        targetAspectRatio = 16 / 9;
+        break;
     }
 
     // Start with resolution as width (in characters)
@@ -176,7 +177,13 @@ export function useAsciiRenderer(
 
   // Pre-generate character lookup table (only for random mode)
   const charLookup = useMemo(() => {
-    if (settings.characters.length <= 1 || settings.mappingMode !== 'random') return null;
+    if (settings.characters.length <= 1) return null;
+    
+    // If randomize is off, don't need lookup
+    if (!settings.randomize) return null;
+    
+    // Only for random mode when randomize is on
+    if (settings.mappingMode !== 'random') return null;
 
     const { cols, rows } = gridDimensions;
     const total = cols * rows;
@@ -187,16 +194,22 @@ export function useAsciiRenderer(
     }
 
     return chars;
-  }, [settings.characters, settings.randomSeed, settings.mappingMode, gridDimensions]);
+  }, [settings.characters, settings.randomSeed, settings.randomize, settings.mappingMode, gridDimensions]);
 
   // Shuffled character string for gradient modes
   const gradientChars = useMemo(() => {
-    if (settings.characters.length <= 1 || (settings.mappingMode !== 'gradient' && settings.mappingMode !== 'hue')) {
+    if (settings.characters.length <= 1) return settings.characters;
+    
+    // If randomize is off, use original order
+    if (!settings.randomize) return settings.characters;
+    
+    // Shuffle for gradient/hue modes when randomize is on
+    if (settings.mappingMode !== 'gradient' && settings.mappingMode !== 'hue') {
       return settings.characters;
     }
     const seed = settings.mappingMode === 'hue' ? settings.hueSeed : settings.gradientSeed;
     return shuffleString(settings.characters, seed);
-  }, [settings.characters, settings.gradientSeed, settings.hueSeed, settings.mappingMode]);
+  }, [settings.characters, settings.gradientSeed, settings.hueSeed, settings.randomize, settings.mappingMode]);
 
   useEffect(() => {
     if (!canvasRef.current || !video || !isVideoReady) return;
@@ -261,7 +274,8 @@ export function useAsciiRenderer(
       const canvasAspectRatio = canvasWidth / canvasHeight;
 
       // Sample entire frame at once (at grid resolution for speed!)
-      const imageData = sampleVideoFrame(video, tempCanvas, tempCtx, cols, rows, canvasAspectRatio);
+      // Pass overlay if present for compositing
+      const imageData = sampleVideoFrame(video, tempCanvas, tempCtx, cols, rows, canvasAspectRatio, settings.overlay);
 
       // Cache repeated values
       const useMultipleChars = settings.characters.length > 1;
@@ -269,6 +283,7 @@ export function useAsciiRenderer(
       const isColored = settings.colorMode === 'colored';
       const isGradientMode = settings.mappingMode === 'gradient';
       const isHueMode = settings.mappingMode === 'hue';
+      const useRandomize = settings.randomize;
       const { brightness, contrast, gamma, invert, minAxis, maxAxis, foregroundColor } = settings;
 
       // Get font configuration once per frame (not per character!)
@@ -280,10 +295,14 @@ export function useAsciiRenderer(
           // Get pixel from pre-sampled image data
           const pixel = getPixelFromImageData(imageData, col, row, cols);
 
-          // Select character based on mapping mode (using ORIGINAL pixel data)
+          // Select character based on mapping mode and randomize setting
           let char: string;
           if (!useMultipleChars) {
             char = singleChar;
+          } else if (!useRandomize) {
+            // Sequential looping mode - just loop through characters in order
+            const position = row * cols + col;
+            char = settings.characters[position % settings.characters.length];
           } else if (isHueMode) {
             // Hue mode: map hue from video to character
             char = getCharByHue(gradientChars, pixel.hue);
