@@ -24,12 +24,6 @@ function App() {
       <main className="app-main">
         <AsciiCam onCameraStart={() => setIsCameraActive(true)} />
       </main>
-
-      {!isCameraActive && (
-        <footer className="app-footer">
-          <p>Uses font weight axis (100-900) to map luminance values</p>
-        </footer>
-      )}
     </div>
   );
 }

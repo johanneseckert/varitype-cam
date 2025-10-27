@@ -178,10 +178,10 @@ export function useAsciiRenderer(
   // Pre-generate character lookup table (only for random mode)
   const charLookup = useMemo(() => {
     if (settings.characters.length <= 1) return null;
-    
+
     // If randomize is off, don't need lookup
     if (!settings.randomize) return null;
-    
+
     // Only for random mode when randomize is on
     if (settings.mappingMode !== 'random') return null;
 
@@ -199,10 +199,10 @@ export function useAsciiRenderer(
   // Shuffled character string for gradient modes
   const gradientChars = useMemo(() => {
     if (settings.characters.length <= 1) return settings.characters;
-    
+
     // If randomize is off, use original order
     if (!settings.randomize) return settings.characters;
-    
+
     // Shuffle for gradient/hue modes when randomize is on
     if (settings.mappingMode !== 'gradient' && settings.mappingMode !== 'hue') {
       return settings.characters;

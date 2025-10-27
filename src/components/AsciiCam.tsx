@@ -46,7 +46,7 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
         render: (get) => get('Character Set.preset') === 'Custom'
       },
       randomize: {
-        value: true,
+        value: false,
         label: 'Randomize',
         render: (get) => {
           const preset = get('Character Set.preset') as PresetName;
@@ -120,12 +120,12 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
 
     'Appearance': folder({
       aspectRatio: {
-        value: '16:9',
+        value: 'Tarot',
         options: ['16:9', '4:3', '1:1', 'Tarot'],
         label: 'Aspect Ratio'
       },
       resolution: {
-        value: 80,
+        value: 200,
         min: 30,
         max: 250,
         step: 1,
@@ -149,21 +149,21 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
 
     'Video Feed': folder({
       brightness: {
-        value: 0,
+        value: 7,
         min: -100,
         max: 100,
         step: 1,
         label: 'Brightness'
       },
       contrast: {
-        value: 100,
+        value: 112,
         min: 0,
         max: 200,
         step: 1,
         label: 'Contrast'
       },
       gamma: {
-        value: 1.0,
+        value: 1.1,
         min: 0.1,
         max: 3.0,
         step: 0.1,
@@ -442,11 +442,11 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
     maxAxisValue
   ]);
 
-  // Export controls (below Font)
+  // Export controls (below Font) - dependencies ensure buttons always have latest state
   useControls('Export', {
     'Export PNG (1x)': button(() => exportToPNG(canvasRef.current)),
     'Export PNG (4x)': button(() => exportToPNG4x(exportSettings))
-  }, { collapsed: true });
+  }, { collapsed: true }, [exportSettings]);
 
   // Use the renderer hook
   useAsciiRenderer(
@@ -488,7 +488,7 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
             <span className="button-icon">📹</span>
             <span className="button-text">Start Camera</span>
           </button>
-          <p className="start-hint">Click to enable your webcam and begin</p>
+          <p className="start-hint">Made with ♥︎ and AI by <a href="http://eckert.io" target="_blank" rel="noopener noreferrer">Johannes Eckert</a>. <a href="https://github.com/johanneseckert/varitype-cam" target="_blank" rel="noopener noreferrer">Github</a></p>
         </div>
       )}
 
