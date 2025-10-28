@@ -7,7 +7,7 @@ import {
   applyGamma,
   mapToFontAxis
 } from '../utils/luminance';
-import { getRandomChar, getCharByLuminance, getCharByHue } from '../utils/seededRandom';
+import { getCharByLuminance, getCharByHue } from '../utils/seededRandom';
 import { FONTS, DEFAULT_FONT, type FontId } from '../constants/fonts';
 
 export interface ExportSettings {

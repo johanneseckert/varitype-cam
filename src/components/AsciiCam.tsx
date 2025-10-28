@@ -1,12 +1,14 @@
-import { useRef, useEffect, useMemo, useState } from 'react';
+import { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { useControls, button, folder } from 'leva';
 import { useWebcam } from '../hooks/useWebcam';
 import { useAsciiRenderer } from '../hooks/useAsciiRenderer';
 import { useImageExport, type ExportSettings } from '../hooks/useImageExport';
 import { useImageOverlay } from '../hooks/useImageOverlay';
+import { useMidi } from '../hooks/useMidi';
 import { ASCII_PRESETS, PRESET_OPTIONS, type PresetName } from '../constants/asciiPresets';
 import { FONTS, DEFAULT_FONT, type FontId } from '../constants/fonts';
 import { getRandomChar, shuffleString } from '../utils/seededRandom';
+import { CC_MAPPINGS, NOTE_MAPPINGS, midiKey } from '../constants/midiConfig';
 
 interface AsciiCamProps {
   onCameraStart?: () => void;
@@ -17,6 +19,7 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
   const { video, isReady, error, isLoading, hasStarted, startWebcam } = useWebcam();
   const { exportToPNG, exportToPNG4x } = useImageExport();
   const { overlay, loadOverlay, removeOverlay } = useImageOverlay();
+  const { isConnected, error: midiError, lastMessage, requestMidiAccess, onMidiMessage } = useMidi();
 
   // Notify parent when camera starts
   useEffect(() => {
@@ -33,7 +36,7 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
   }, []);
 
   // Leva controls (everything except Font-specific controls)
-  const settings = useControls({
+  const [settings, setSettings] = useControls(() => ({
     'Character Set': folder({
       preset: {
         value: 'MAX' as PresetName,
@@ -57,7 +60,7 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
         }
       },
       mappingMode: {
-        value: 'random' as 'random' | 'gradient' | 'hue',
+        value: 'gradient' as 'random' | 'gradient' | 'hue',
         options: {
           'Random Position': 'random',
           'Map to Brightness': 'gradient',
@@ -176,13 +179,24 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
     }),
 
     'Overlay': folder({
-      loadImage: button(() => loadOverlay(), { label: 'Load Image Overlay' }),
-      removeImage: button(() => removeOverlay(), {
-        label: 'Remove Overlay',
+      'Load Image Overlay': button(() => loadOverlay()),
+      'Remove Overlay': button(() => removeOverlay(), {
         disabled: !overlay
       })
-    })
-  });
+    }),
+
+    'MIDI Control (Experimental)': folder({
+      'Request MIDI Access': button(() => requestMidiAccess()),
+      'Connected': {
+        value: isConnected,
+        disabled: true
+      },
+      'Info': {
+        value: isConnected ? 'Check console for MIDI messages' : (midiError || 'Click Request MIDI Access'),
+        editable: false
+      }
+    }, { collapsed: true })
+  }), [isConnected, midiError]);
 
   // Separate Font controls so we can rebuild min/max when font changes
   const [fontIdLocal, setFontIdLocal] = useState<FontId>(DEFAULT_FONT);
@@ -447,6 +461,69 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
     'Export PNG (1x)': button(() => exportToPNG(canvasRef.current)),
     'Export PNG (4x)': button(() => exportToPNG4x(exportSettings))
   }, { collapsed: true }, [exportSettings]);
+
+  // MIDI message handler
+  const handleMidiMessage = useCallback((message: typeof lastMessage) => {
+    if (!message) return;
+
+    if (message.type === 'cc') {
+      // Handle CC messages - update sliders
+      const key = midiKey(message.channel, message.controller);
+      const mapping = CC_MAPPINGS[key];
+      if (mapping) {
+        // Scale MIDI value (0-127) to control's range (min-max)
+        const scaledValue = mapping.min + (message.value / 127) * (mapping.max - mapping.min);
+        setSettings({ [mapping.path]: scaledValue });
+      }
+    } else if (message.type === 'note' && message.on) {
+      // Handle Note On messages - trigger buttons
+      const key = midiKey(message.channel, message.note);
+      const action = NOTE_MAPPINGS[key];
+      if (action) {
+        switch (action.action) {
+          case 'toggleInvert':
+            setSettings({ invert: !settings.invert });
+            break;
+          case 'export':
+            exportToPNG(canvasRef.current);
+            break;
+          case 'loadOverlay':
+            loadOverlay();
+            break;
+          case 'removeOverlay':
+            removeOverlay();
+            break;
+          case 'cyclePresetForward': {
+            // Cycle through presets forward (excluding Custom)
+            const availablePresets = PRESET_OPTIONS.filter(p => p !== 'Custom') as PresetName[];
+            const currentIndex = availablePresets.indexOf(settings.preset as PresetName);
+            // If current preset is Custom or not found (-1), (-1 + 1) % length = 0 (start from beginning)
+            const nextIndex = (currentIndex + 1) % availablePresets.length;
+            setSettings({ preset: availablePresets[nextIndex] });
+            break;
+          }
+          case 'cyclePresetBackward': {
+            // Cycle through presets backward (excluding Custom)
+            const availablePresets = PRESET_OPTIONS.filter(p => p !== 'Custom') as PresetName[];
+            const currentIndex = availablePresets.indexOf(settings.preset as PresetName);
+            // If current preset is Custom or not found (-1), wrap to last preset
+            const prevIndex = (currentIndex - 1 + availablePresets.length) % availablePresets.length;
+            setSettings({ preset: availablePresets[prevIndex] });
+            break;
+          }
+          case 'toggleRandomize':
+            setSettings({ randomize: !settings.randomize });
+            break;
+        }
+      }
+    }
+  }, [setSettings, settings.invert, settings.preset, settings.randomize, exportToPNG, loadOverlay, removeOverlay]);
+
+  // Subscribe to MIDI messages
+  useEffect(() => {
+    const cleanup = onMidiMessage(handleMidiMessage);
+    return cleanup;
+  }, [onMidiMessage, handleMidiMessage]);
 
   // Use the renderer hook
   useAsciiRenderer(
