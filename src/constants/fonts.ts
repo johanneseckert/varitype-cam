@@ -90,48 +90,6 @@ export const FONTS: Record<string, VariableFontConfig> = {
       }
     ]
   },
-  'sixtyfour': {
-    id: 'sixtyfour',
-    name: 'Sixtyfour',
-    family: 'Sixtyfour Variable',
-    charAspectRatio: 0.6,
-    primaryAxis: {
-      name: 'BLED',
-      label: 'Bleed',
-      min: 0,
-      max: 100
-    },
-    secondaryAxes: [
-      {
-        name: 'SCAN',
-        label: 'Scanlines',
-        min: -53,
-        max: 100,
-        default: 0
-      }
-    ]
-  },
-  'workbench': {
-    id: 'workbench',
-    name: 'Workbench',
-    family: 'Workbench Variable',
-    charAspectRatio: 0.6,
-    primaryAxis: {
-      name: 'BLED',
-      label: 'Bleed',
-      min: 0,
-      max: 100
-    },
-    secondaryAxes: [
-      {
-        name: 'SCAN',
-        label: 'Scanlines',
-        min: -53,
-        max: 100,
-        default: 0
-      }
-    ]
-  },
   'bitcount-grid-single': {
     id: 'bitcount-grid-single',
     name: 'Bitcount Grid Single',

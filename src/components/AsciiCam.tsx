@@ -268,18 +268,6 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
   const minAxisValue = typeof fontSettingsAny.minAxis === 'number' ? fontSettingsAny.minAxis : currentFont.primaryAxis.min;
   const maxAxisValue = typeof fontSettingsAny.maxAxis === 'number' ? fontSettingsAny.maxAxis : currentFont.primaryAxis.max;
 
-  // Debug: Log axis values when they change
-  useEffect(() => {
-    console.log('[AsciiCam] Axis values:', {
-      fontId: fontIdLocal,
-      fontSettingsMinAxis: fontSettingsAny.minAxis,
-      fontSettingsMaxAxis: fontSettingsAny.maxAxis,
-      minAxisValue,
-      maxAxisValue,
-      fontSettingsKeys: Object.keys(fontSettings)
-    });
-  }, [fontIdLocal, fontSettingsAny.minAxis, fontSettingsAny.maxAxis, minAxisValue, maxAxisValue]);
-
   // Calculate grid dimensions (needed for export)
   const gridDimensions = useMemo(() => {
     const font = FONTS[fontIdLocal] || FONTS[DEFAULT_FONT];
