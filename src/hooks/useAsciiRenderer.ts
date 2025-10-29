@@ -13,7 +13,6 @@ import { FONTS, DEFAULT_FONT, type FontId } from '../constants/fonts';
 export interface RenderSettings {
   // Font settings
   fontId: FontId;
-  secondaryAxes?: Record<string, number>; // Dynamic secondary axis values
 
   // Character settings
   characters: string;
@@ -336,34 +335,12 @@ export function useAsciiRenderer(
           // Force context to recognize font change by saving/restoring state
           ctx.save();
 
-          if (font.primaryAxis.name === 'wght') {
-            // Primary axis is weight - use it directly in font string
-            const weight = primaryAxisValue;
-
-            // Build secondary axes variation settings if present
-            if (font.secondaryAxes && settings.secondaryAxes && font.secondaryAxes.length > 0) {
-              // Note: Canvas 2D doesn't support font-variation-settings in font string
-              // Secondary axes are currently not applied in Canvas 2D rendering
-              // Format: [font-style] [font-weight] [font-size] [font-family]
-              const fontString = `normal ${weight} ${fontSize}px '${font.family}'`;
-              ctx.font = fontString;
-            } else {
-              // No secondary axes - just set weight
-              // Format: [font-style] [font-weight] [font-size] [font-family]
-              const fontString = `normal ${weight} ${fontSize}px '${font.family}'`;
-              ctx.font = fontString;
-            }
-          } else {
-            // Primary axis is NOT weight - need to use font-variation-settings
-            // Canvas doesn't support this directly, so we'll need a workaround
-            // For now, use default weight and log a warning
-            if (row === 0 && col === 0) {
-              console.warn(`[Render] Canvas 2D doesn't fully support variable font axis '${font.primaryAxis.name}' - using fallback`);
-            }
-            // Format: [font-style] [font-weight] [font-size] [font-family]
-            const fontString = `normal 400 ${fontSize}px '${font.family}'`;
-            ctx.font = fontString;
-          }
+          // Set font with primary axis value as weight
+          // Note: Canvas 2D only supports 'wght' axis via the font-weight property
+          // Other axes (like BLED, SCAN, etc.) are not supported in Canvas 2D
+          const weight = font.primaryAxis.name === 'wght' ? primaryAxisValue : 400;
+          const fontString = `normal ${weight} ${fontSize}px '${font.family}'`;
+          ctx.font = fontString;
 
           // Set color (after save, so it applies to this character)
           if (isColored) {

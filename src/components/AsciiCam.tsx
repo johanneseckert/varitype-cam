@@ -213,12 +213,14 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
           options: fontOptions,
           label: 'Font Family',
           onChange: (next: FontId) => {
-            setFontIdLocal(next);
-            // Force reset min/max values to new font's range
             const newFont = FONTS[next];
+            setFontIdLocal(next);
+            // Reset axis values to new font's defaults
             setTimeout(() => {
-              setFontSettings({ minAxis: newFont.primaryAxis.min });
-              setFontSettings({ maxAxis: newFont.primaryAxis.max });
+              setFontSettings({
+                minAxis: newFont.primaryAxis.min,
+                maxAxis: newFont.primaryAxis.max
+              });
             }, 0);
           }
         },
@@ -235,46 +237,6 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
           max: primary.max,
           step: 1,
           label: `Max ${primary.label} (bright)`
-        },
-        ROND: {
-          value: 0,
-          min: 0,
-          max: 100,
-          step: 5,
-          label: 'Roundness',
-          render: () => fontIdLocal === 'doto'
-        },
-        MONO: {
-          value: 1,
-          min: 0,
-          max: 1,
-          step: 0.1,
-          label: 'Monospace',
-          render: () => fontIdLocal === 'sono'
-        },
-        SCAN: {
-          value: 0,
-          min: -53,
-          max: 100,
-          step: 1,
-          label: 'Scanlines',
-          render: () => fontIdLocal === 'sixtyfour' || fontIdLocal === 'workbench'
-        },
-        ELSH: {
-          value: 0,
-          min: 0,
-          max: 100,
-          step: 5,
-          label: 'Shape',
-          render: () => fontIdLocal === 'bitcount-grid-single'
-        },
-        ELXP: {
-          value: 0,
-          min: 0,
-          max: 100,
-          step: 5,
-          label: 'Expansion',
-          render: () => fontIdLocal === 'bitcount-grid-single'
         },
         lineHeight: {
           value: 1.0,
@@ -300,37 +262,23 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
     ? settings.customChars || 'M'
     : ASCII_PRESETS[settings.preset];
 
-  // Build secondary axes object from settings
-  const secondaryAxes = useMemo(() => {
-    const axes: Record<string, number> = {};
-    const fontId = String((fontSettings as any).fontId);
-    const selectedFont = FONTS[fontId as FontId];
-
-    if (selectedFont?.secondaryAxes) {
-      selectedFont.secondaryAxes.forEach(axis => {
-        // Get value from the Font panel or use default
-        const settingsValue = (fontSettings as any)[axis.name];
-        axes[axis.name] = typeof settingsValue === 'number' ? settingsValue : (axis.default ?? axis.min);
-      });
-    }
-
-    return Object.keys(axes).length > 0 ? axes : undefined;
-  }, [fontSettings]);
-
-  // Get current font to ensure min/max are always in sync
+  // Get primary axis values from fontSettings (fallback to current font defaults)
   const currentFont = FONTS[fontIdLocal] || FONTS[DEFAULT_FONT];
+  const fontSettingsAny = fontSettings as any;
+  const minAxisValue = typeof fontSettingsAny.minAxis === 'number' ? fontSettingsAny.minAxis : currentFont.primaryAxis.min;
+  const maxAxisValue = typeof fontSettingsAny.maxAxis === 'number' ? fontSettingsAny.maxAxis : currentFont.primaryAxis.max;
 
-  // Check if fontSettings has been updated to match the current font
-  // If not, use the font's default range to prevent mismatched axis values
-  const settingsFontId = String((fontSettings as any)?.fontId || DEFAULT_FONT) as FontId;
-  const isFontSettingsSynced = settingsFontId === fontIdLocal;
-
-  const minAxisValue = isFontSettingsSynced && fontSettings?.minAxis
-    ? Number(fontSettings.minAxis)
-    : currentFont.primaryAxis.min;
-  const maxAxisValue = isFontSettingsSynced && fontSettings?.maxAxis
-    ? Number(fontSettings.maxAxis)
-    : currentFont.primaryAxis.max;
+  // Debug: Log axis values when they change
+  useEffect(() => {
+    console.log('[AsciiCam] Axis values:', {
+      fontId: fontIdLocal,
+      fontSettingsMinAxis: fontSettingsAny.minAxis,
+      fontSettingsMaxAxis: fontSettingsAny.maxAxis,
+      minAxisValue,
+      maxAxisValue,
+      fontSettingsKeys: Object.keys(fontSettings)
+    });
+  }, [fontIdLocal, fontSettingsAny.minAxis, fontSettingsAny.maxAxis, minAxisValue, maxAxisValue]);
 
   // Calculate grid dimensions (needed for export)
   const gridDimensions = useMemo(() => {
@@ -360,8 +308,8 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
     const baseCols = settings.resolution;
     const fontSize = targetCanvasWidth / (baseCols * charAspectRatio);
     const baseFontSize = fontSize;
-    const letterSpacingValue = Number(fontSettings?.letterSpacing) || 1.0;
-    const lineHeightValue = Number(fontSettings?.lineHeight) || 1.0;
+    const letterSpacingValue = typeof fontSettingsAny.letterSpacing === 'number' ? fontSettingsAny.letterSpacing : 1.0;
+    const lineHeightValue = typeof fontSettingsAny.lineHeight === 'number' ? fontSettingsAny.lineHeight : 1.0;
     const charWidth = baseFontSize * charAspectRatio * letterSpacingValue;
     const canvasWidth = targetCanvasWidth;
     const cols = Math.floor(canvasWidth / charWidth);
@@ -378,7 +326,7 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
       charHeight: rowHeight,
       fontSize: baseFontSize
     };
-  }, [settings.resolution, settings.aspectRatio, fontSettings?.lineHeight, fontSettings?.letterSpacing, fontIdLocal, video]);
+  }, [settings.resolution, settings.aspectRatio, fontSettingsAny.lineHeight, fontSettingsAny.letterSpacing, fontIdLocal, video]);
 
   // Pre-generate character lookup table - needed for export
   const charLookup = useMemo(() => {
@@ -422,8 +370,8 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
     overlay,
     fontId: fontIdLocal,
     fontSize: gridDimensions.fontSize,
-    lineHeight: Number(fontSettings?.lineHeight) || 1.0,
-    letterSpacing: Number(fontSettings?.letterSpacing) || 1.0,
+    lineHeight: typeof fontSettingsAny.lineHeight === 'number' ? fontSettingsAny.lineHeight : 1.0,
+    letterSpacing: typeof fontSettingsAny.letterSpacing === 'number' ? fontSettingsAny.letterSpacing : 1.0,
     characters,
     charLookup,
     gradientChars,
@@ -534,7 +482,6 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
     isReady,
     {
       fontId: fontIdLocal, // Use local state directly, not from fontSettings
-      secondaryAxes,
       characters,
       randomize: Boolean(settings.randomize),
       randomSeed: Number(settings.randomSeed),
@@ -553,8 +500,8 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
       // Use synchronized values or fall back to current font's default range
       minAxis: minAxisValue,
       maxAxis: maxAxisValue,
-      lineHeight: Number(fontSettings?.lineHeight) || 1.0,
-      letterSpacing: Number(fontSettings?.letterSpacing) || 1.0,
+      lineHeight: typeof fontSettingsAny.lineHeight === 'number' ? fontSettingsAny.lineHeight : 1.0,
+      letterSpacing: typeof fontSettingsAny.letterSpacing === 'number' ? fontSettingsAny.letterSpacing : 1.0,
       overlay: overlay // Pass overlay image to renderer
     }
   );
