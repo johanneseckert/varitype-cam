@@ -87,7 +87,8 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
           const chars = preset === 'Custom'
             ? get('Character Set.customChars')
             : ASCII_PRESETS[preset];
-          return chars.length > 1 && get('Character Set.mappingMode') === 'gradient';
+          const randomize = get('Character Set.randomize');
+          return chars.length > 1 && randomize && get('Character Set.mappingMode') === 'gradient';
         }
       },
       randomSeed: {
@@ -116,19 +117,20 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
           const chars = preset === 'Custom'
             ? get('Character Set.customChars')
             : ASCII_PRESETS[preset];
-          return chars.length > 1 && get('Character Set.mappingMode') === 'hue';
+          const randomize = get('Character Set.randomize');
+          return chars.length > 1 && randomize && get('Character Set.mappingMode') === 'hue';
         }
       }
     }),
 
     'Appearance': folder({
       aspectRatio: {
-        value: 'Tarot',
+        value: '16:9',
         options: ['16:9', '4:3', '1:1', 'Tarot'],
         label: 'Aspect Ratio'
       },
       resolution: {
-        value: 200,
+        value: 100,
         min: 30,
         max: 250,
         step: 1,
@@ -152,21 +154,21 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
 
     'Video Feed': folder({
       brightness: {
-        value: 7,
+        value: 0,
         min: -100,
         max: 100,
         step: 1,
         label: 'Brightness'
       },
       contrast: {
-        value: 112,
+        value: 100,
         min: 0,
         max: 200,
         step: 1,
         label: 'Contrast'
       },
       gamma: {
-        value: 1.1,
+        value: 1.0,
         min: 0.1,
         max: 3.0,
         step: 0.1,
