@@ -60,7 +60,8 @@ export function useAsciiRenderer(
   const lastFrameTime = useRef<number>(0);
   const fpsInterval = 1000 / 30; // Target 30 FPS
   const [isFontReady, setIsFontReady] = useState<boolean>(true);
-  const frozenFrameRef = useRef<ImageData | null>(null);
+  const frozenCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const frozenCtxRef = useRef<CanvasRenderingContext2D | null>(null);
 
   // Memoize grid dimensions and canvas size
   const gridDimensions = useMemo(() => {
@@ -276,26 +277,90 @@ export function useAsciiRenderer(
       // Calculate canvas aspect ratio (accounting for character width)
       const canvasAspectRatio = canvasWidth / canvasHeight;
 
-      // Sample entire frame at once (at grid resolution for speed!)
-      // Pass overlay if present for compositing
+      // Handle frozen frame capture and sampling
       let imageData: ImageData;
 
-      if (settings.paused && frozenFrameRef.current) {
-        // Use frozen frame when paused
-        imageData = frozenFrameRef.current;
+      if (settings.paused) {
+        // Initialize frozen canvas if needed
+        if (!frozenCanvasRef.current) {
+          frozenCanvasRef.current = document.createElement('canvas');
+          frozenCtxRef.current = frozenCanvasRef.current.getContext('2d', { willReadFrequently: true, alpha: false });
+
+          // Store full-resolution snapshot of current video frame
+          const frozenCanvas = frozenCanvasRef.current;
+          const frozenCtx = frozenCtxRef.current;
+          if (frozenCtx) {
+            // Calculate video aspect ratio and cropping
+            const videoWidth = video.videoWidth;
+            const videoHeight = video.videoHeight;
+            const videoAspect = videoWidth / videoHeight;
+
+            let sourceX = 0, sourceY = 0;
+            let sourceWidth = videoWidth, sourceHeight = videoHeight;
+
+            if (Math.abs(videoAspect - canvasAspectRatio) > 0.01) {
+              if (videoAspect > canvasAspectRatio) {
+                sourceWidth = videoHeight * canvasAspectRatio;
+                sourceX = (videoWidth - sourceWidth) / 2;
+              } else {
+                sourceHeight = videoWidth / canvasAspectRatio;
+                sourceY = (videoHeight - sourceHeight) / 2;
+              }
+            }
+
+            // Store at a reasonable high resolution (1080p equivalent)
+            const frozenWidth = 1920;
+            const frozenHeight = Math.round(frozenWidth / canvasAspectRatio);
+            frozenCanvas.width = frozenWidth;
+            frozenCanvas.height = frozenHeight;
+
+            // Draw the cropped video frame to frozen canvas
+            frozenCtx.drawImage(
+              video,
+              sourceX, sourceY, sourceWidth, sourceHeight,
+              0, 0, frozenWidth, frozenHeight
+            );
+
+            // Apply overlay if present
+            if (settings.overlay) {
+              frozenCtx.drawImage(
+                settings.overlay,
+                0, 0, settings.overlay.width, settings.overlay.height,
+                0, 0, frozenWidth, frozenHeight
+              );
+            }
+          }
+        }
+
+        // Sample from frozen canvas at current grid resolution
+        if (frozenCanvasRef.current && frozenCtxRef.current) {
+          // Resize temp canvas to grid resolution
+          if (tempCanvas.width !== cols || tempCanvas.height !== rows) {
+            tempCanvas.width = cols;
+            tempCanvas.height = rows;
+          }
+
+          // Sample frozen canvas at grid resolution
+          tempCtx.drawImage(
+            frozenCanvasRef.current,
+            0, 0, frozenCanvasRef.current.width, frozenCanvasRef.current.height,
+            0, 0, cols, rows
+          );
+
+          imageData = tempCtx.getImageData(0, 0, cols, rows);
+        } else {
+          // Fallback if frozen canvas isn't ready
+          imageData = sampleVideoFrame(video, tempCanvas, tempCtx, cols, rows, canvasAspectRatio, settings.overlay);
+        }
       } else {
+        // Clear frozen canvas when not paused
+        if (frozenCanvasRef.current) {
+          frozenCanvasRef.current = null;
+          frozenCtxRef.current = null;
+        }
+
         // Sample fresh frame from video
         imageData = sampleVideoFrame(video, tempCanvas, tempCtx, cols, rows, canvasAspectRatio, settings.overlay);
-
-        // Store this frame if we just paused
-        if (settings.paused) {
-          frozenFrameRef.current = imageData;
-        }
-      }
-
-      // Clear frozen frame when not paused
-      if (!settings.paused && frozenFrameRef.current) {
-        frozenFrameRef.current = null;
       }
 
       // Cache repeated values
