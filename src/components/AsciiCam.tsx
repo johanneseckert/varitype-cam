@@ -20,6 +20,8 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
   const { exportToPNG, exportToPNG4x } = useImageExport();
   const { overlay, loadOverlay, removeOverlay } = useImageOverlay();
   const { isConnected, error: midiError, lastMessage, requestMidiAccess, onMidiMessage } = useMidi();
+  const [isPaused, setIsPaused] = useState(false);
+  const [isHovering, setIsHovering] = useState(false);
 
   // Notify parent when camera starts
   useEffect(() => {
@@ -490,9 +492,17 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
       maxAxis: maxAxisValue,
       lineHeight: typeof fontSettingsAny.lineHeight === 'number' ? fontSettingsAny.lineHeight : 1.0,
       letterSpacing: typeof fontSettingsAny.letterSpacing === 'number' ? fontSettingsAny.letterSpacing : 1.0,
-      overlay: overlay // Pass overlay image to renderer
+      overlay: overlay, // Pass overlay image to renderer
+      paused: isPaused // Pass pause state to renderer
     }
   );
+
+  // Handler for canvas click to toggle pause
+  const handleCanvasClick = useCallback(() => {
+    if (isReady) {
+      setIsPaused(prev => !prev);
+    }
+  }, [isReady]);
 
   return (
     <div className="ascii-cam-container">
@@ -521,10 +531,32 @@ export function AsciiCam({ onCameraStart }: AsciiCamProps) {
       )}
 
       {isReady && (
-        <canvas
-          ref={canvasRef}
-          className="ascii-canvas"
-        />
+        <div
+          className="canvas-wrapper"
+          onMouseEnter={() => setIsHovering(true)}
+          onMouseLeave={() => setIsHovering(false)}
+          onClick={handleCanvasClick}
+        >
+          <canvas
+            ref={canvasRef}
+            className="ascii-canvas"
+          />
+          {isHovering && (
+            <div className="pause-overlay">
+              <button className="pause-button">
+                {isPaused ? (
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="white">
+                    <path d="M8 5v14l11-7z"/>
+                  </svg>
+                ) : (
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="white">
+                    <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+                  </svg>
+                )}
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

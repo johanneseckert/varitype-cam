@@ -43,6 +43,9 @@ export interface RenderSettings {
 
   // Overlay
   overlay?: HTMLImageElement | null;
+
+  // Pause control
+  paused?: boolean;
 }
 
 export function useAsciiRenderer(
@@ -57,6 +60,7 @@ export function useAsciiRenderer(
   const lastFrameTime = useRef<number>(0);
   const fpsInterval = 1000 / 30; // Target 30 FPS
   const [isFontReady, setIsFontReady] = useState<boolean>(true);
+  const frozenFrameRef = useRef<ImageData | null>(null);
 
   // Memoize grid dimensions and canvas size
   const gridDimensions = useMemo(() => {
@@ -274,7 +278,25 @@ export function useAsciiRenderer(
 
       // Sample entire frame at once (at grid resolution for speed!)
       // Pass overlay if present for compositing
-      const imageData = sampleVideoFrame(video, tempCanvas, tempCtx, cols, rows, canvasAspectRatio, settings.overlay);
+      let imageData: ImageData;
+
+      if (settings.paused && frozenFrameRef.current) {
+        // Use frozen frame when paused
+        imageData = frozenFrameRef.current;
+      } else {
+        // Sample fresh frame from video
+        imageData = sampleVideoFrame(video, tempCanvas, tempCtx, cols, rows, canvasAspectRatio, settings.overlay);
+
+        // Store this frame if we just paused
+        if (settings.paused) {
+          frozenFrameRef.current = imageData;
+        }
+      }
+
+      // Clear frozen frame when not paused
+      if (!settings.paused && frozenFrameRef.current) {
+        frozenFrameRef.current = null;
+      }
 
       // Cache repeated values
       const useMultipleChars = settings.characters.length > 1;
